@@ -4,6 +4,7 @@ import '@fontsource-variable/fraunces';
 import '@fontsource-variable/fraunces/wght-italic.css';
 import '../styles/global.css';
 import { SITE, SOCIALS, NEWSLETTER } from '../data/site';
+import SocialIcon from '../components/SocialIcon.astro';
 
 interface Props {
   title?: string;
@@ -70,7 +71,7 @@ const socials = SOCIALS.filter((s) => s.url);
 
     <header class="site-header">
       <div class="wrap">
-        <a class="wordmark" href="/">{SITE.firstName}</a>
+        <a class="wordmark" href="/">{SITE.firstName} {SITE.lastName}</a>
         <div class="site-header-tools">
           <nav class="site-nav" aria-label="Site">
             <ul>
@@ -92,20 +93,6 @@ const socials = SOCIALS.filter((s) => s.url);
 
     <footer class="site-footer">
       <div class="wrap">
-        {
-          socials.length > 0 && (
-            <nav class="social-nav" aria-label="Social">
-              <ul>
-                {socials.map((s) => (
-                  <li>
-                    <a href={s.url}>{s.label}</a>
-                  </li>
-                ))}
-              </ul>
-            </nav>
-          )
-        }
-
         <div class="subscribe">
           {
             NEWSLETTER.formAction ? (
@@ -137,7 +124,22 @@ const socials = SOCIALS.filter((s) => s.url);
 
         <div class="footer-meta">
           <p>© {year} {SITE.firstName} {SITE.lastName}</p>
-          <p>{SITE.tagline}</p>
+          {
+            socials.length > 0 && (
+              <nav class="social-nav" aria-label="Social">
+                <ul>
+                  {socials.map((s) => (
+                    <li>
+                      <a href={s.url} rel="me noopener" data-magnetic>
+                        <SocialIcon platform={s.platform} />
+                        <span class="visually-hidden">{s.label}</span>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+            )
+          }
         </div>
       </div>
     </footer>
