@@ -99,6 +99,15 @@ select {
   }
 }
 
+/* Skip webfont downloads when the user asks for less data;
+   @font-face only fetches files for families actually used */
+@media (prefers-reduced-data: reduce) {
+  :root {
+    --font-display: 'Iowan Old Style', Georgia, serif;
+    --font-body: system-ui, -apple-system, sans-serif;
+  }
+}
+
 /* Accent scoping: any element with data-accent inherits its venture's color */
 [data-accent='trellais'] {
   --accent: var(--accent-trellais);
@@ -211,9 +220,14 @@ a:hover {
   transform: translateY(calc(-100% - var(--space-l)));
 }
 
-.skip-link:focus-visible {
+.skip-link:focus {
   transform: none;
   outline-color: var(--ink);
+}
+
+/* The skip-link target is focusable programmatically, not interactive */
+main[tabindex='-1']:focus-visible {
+  outline: none;
 }
 
 /* ---------- Layout ---------- */
@@ -252,6 +266,9 @@ a:hover {
 }
 
 .site-nav a {
+  /* inline-block + padding keeps small-text links at a usable target size */
+  display: inline-block;
+  padding-block: 0.4em;
   text-decoration: none;
   font-size: var(--step--1);
   font-weight: 500;
@@ -365,12 +382,15 @@ a:hover {
   color: var(--accent);
 }
 
-.card h3 {
-  font-size: var(--step-2);
+.card-title {
   display: flex;
   align-items: baseline;
   gap: var(--space-s);
   flex-wrap: wrap;
+}
+
+.card h3 {
+  font-size: var(--step-2);
 }
 
 .card .status {
@@ -384,7 +404,7 @@ a:hover {
   padding: 0.1em 0.7em;
 }
 
-.card p:not(.kicker) {
+.card p:not(.kicker):not(.status) {
   color: var(--ink-muted);
   flex-grow: 1;
 }
@@ -398,6 +418,8 @@ a:hover {
 }
 
 .card-links a {
+  display: inline-block;
+  padding-block: 0.3em;
   font-weight: 560;
   color: var(--accent);
   text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
@@ -555,6 +577,8 @@ a:hover {
 }
 
 .social-nav a {
+  display: inline-block;
+  padding-block: 0.3em;
   color: var(--ink);
   font-weight: 550;
 }

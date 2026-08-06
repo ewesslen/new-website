@@ -18,7 +18,10 @@ npm run preview    # serve the built site locally
 
 ```sh
 npm run contrast   # WCAG 2.2 AA contrast check for the token palette
-npm run build && npm run a11y   # axe scan of every page, light + dark
+npm run build && npm run a11y       # axe scan of every page, light + dark
+npm run build && npm run keyboard   # automated keyboard walkthrough:
+                   # skip link first + working, tab order = DOM order,
+                   # visible focus indicator on every stop, no traps
 npm run check      # astro/TypeScript check
 ```
 
@@ -86,6 +89,8 @@ scripts/
 - WCAG 2.2 AA contrast — per-venture accent colors have separate
   light/dark-mode values tuned to pass on their backgrounds
   (see `scripts/contrast.mjs`).
-- `prefers-color-scheme` and `forced-colors` respected;
-  `prefers-reduced-motion` will gate all motion added in later phases.
+- `prefers-color-scheme`, `forced-colors`, and `prefers-reduced-data`
+  (falls back to system fonts) respected; `prefers-reduced-motion` will
+  gate all motion added in later phases.
+- Small-text links carry extra padding to meet WCAG 2.5.8 target size.
 - No client-side JS required for any content or navigation.

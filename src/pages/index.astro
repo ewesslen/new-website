@@ -12,7 +12,7 @@ const nowUpdated = new Date(NOW.updated + 'T00:00:00').toLocaleDateString('en-US
 ---
 
 <Base>
-  <main id="main">
+  <main id="main" tabindex="-1">
     <section class="hero wrap" aria-labelledby="hero-name">
       <h1 id="hero-name">{SITE.firstName} {SITE.lastName}</h1>
       <p class="tagline">{SITE.tagline}</p>
@@ -52,7 +52,9 @@ const nowUpdated = new Date(NOW.updated + 'T00:00:00').toLocaleDateString('en-US
       <div class="wrap">
         <div class="section-head">
           <h2 id="writing-heading">Writing</h2>
-          <p class="section-note"><a href="/writing/">View all</a></p>
+          <p class="section-note">
+            <a href="/writing/">View all<span class="visually-hidden"> writing</span></a>
+          </p>
         </div>
         <ul class="post-list">
           {POSTS.map((post) => <PostItem post={post} />)}

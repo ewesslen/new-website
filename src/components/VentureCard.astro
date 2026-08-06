@@ -11,10 +11,10 @@ const links = venture.links.filter((l) => l.url);
 
 <article class="card" data-accent={venture.slug}>
   <p class="kicker">{venture.kicker}</p>
-  <h3>
-    {venture.name}
-    {venture.status && <span class="status">{venture.status}</span>}
-  </h3>
+  <div class="card-title">
+    <h3>{venture.name}</h3>
+    {venture.status && <p class="status">{venture.status}</p>}
+  </div>
   <p>{venture.description}</p>
   {
     links.length > 0 && (
