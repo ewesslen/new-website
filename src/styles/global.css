@@ -690,6 +690,22 @@ main[tabindex='-1']:focus-visible {
   font-size: var(--step-2);
 }
 
+/* A brand wordmark standing in for the title text. Sized in em off the
+   heading's own font-size — 0.68em against Familjen Grotesk's 0.65em cap
+   height — so it sits at the same optical weight as the type titles beside
+   it, at every step of the fluid scale. */
+.media-item h3.has-logo {
+  display: flex;
+  align-items: center;
+  min-height: 1.14em; /* the line box a text title would occupy */
+}
+
+.title-logo {
+  height: 0.68em;
+  width: auto;
+  max-width: 100%;
+}
+
 .media-item p:not(.kicker) {
   color: var(--ink-muted);
   max-width: var(--measure);

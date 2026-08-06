@@ -18,6 +18,12 @@ export interface Venture {
   description: string;
   status?: string;
   links: Link[];
+  /**
+   * Renders the brand wordmark in place of the title text. `name` stays the
+   * accessible name, so the heading still reads correctly to assistive tech
+   * and in the document outline. Keys map to components in MediaItem.astro.
+   */
+  logo?: 'geeqoid';
 }
 
 /** Keys of the icon set in `src/components/SocialIcon.astro` */
@@ -127,6 +133,7 @@ export const MEDIA: Venture[] = [
     name: 'Geeqoid',
     slug: 'geeqoid',
     kicker: 'Podcast',
+    logo: 'geeqoid',
     description: 'Co-hosted with Jarrad.',
     links: [
       // TODO: Geeqoid URL
