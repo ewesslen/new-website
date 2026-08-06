@@ -7,7 +7,7 @@
  *
  *  - wires the visible motion toggle (persists explicit choice)
  *  - hero: letter-split wipe-in with a variable-font weight wave, then a
- *    pointer-proximity weight bulge (fine pointers only)
+ *    pointer-proximity weight wave (fine pointers only)
  *  - scroll reveals via ScrollTrigger, opacity/transform only — content
  *    never leaves the accessibility tree (no visibility:hidden)
  *  - focusin failsafe: tabbing into an unrevealed element completes its
@@ -92,9 +92,13 @@ function setupViewTransitionOptIn(): void {
 
 /* ---------- Hero: kinetic variable-font name ---------- */
 
-const WGHT_START = 300;
-const WGHT_REST = 620;
-const WGHT_BULGE = 800;
+/* Familjen Grotesk's wght axis stops at 700, which is where the h1 rests —
+   so there is no headroom above it. The pointer wave therefore thins the
+   letters it passes over instead of thickening them; same kinetic read,
+   within the axis the display face actually has. */
+const WGHT_START = 400;
+const WGHT_REST = 700;
+const WGHT_NEAR = 430;
 
 function splitHeroLetters(h1: HTMLElement): HTMLElement[] {
   if (h1.dataset.split) {
@@ -167,7 +171,7 @@ async function heroEntrance(): Promise<void> {
   });
 }
 
-/** Pointer-proximity weight bulge. Listeners only on the hero — no global
+/** Pointer-proximity weight wave. Listeners only on the hero — no global
     rAF loop; completely idle unless the pointer moves over it. */
 function heroPointerWave(signal: AbortSignal): void {
   if (!finePointer.matches) return;
@@ -190,7 +194,7 @@ function heroPointerWave(signal: AbortSignal): void {
         const dx = e.clientX - (rect.left + rect.width / 2);
         const dy = e.clientY - (rect.top + rect.height / 2);
         const t = Math.max(0, 1 - Math.hypot(dx, dy) / 140);
-        quicks[i]!(WGHT_REST + (WGHT_BULGE - WGHT_REST) * t * t);
+        quicks[i]!(WGHT_REST + (WGHT_NEAR - WGHT_REST) * t * t);
       });
     },
     { signal }

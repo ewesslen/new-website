@@ -6,25 +6,27 @@
 
 /* ---------- Metric-matched font fallbacks ----------
    Local fonts adjusted to the webfonts' real metrics (measured from the
-   font tables: Inter ascent 96.87%/descent 24.12%/avg advance 0.5352em;
-   Fraunces 97.8%/25.5%/0.595em) so the swap causes no layout shift.
-   Liberation Sans and Gelasio are the metric-compatible Linux stand-ins. */
+   font tables: Familjen Grotesk ascent 102.5%/descent 22.5%/avg lowercase
+   advance 0.4795em; Hanken Grotesk 100%/30.3%/0.5037em) so the swap causes
+   no layout shift. Both are grotesks, so Arial — with Liberation Sans as
+   the metric-compatible Linux stand-in — backs each one; the size-adjust
+   values below are relative to that. */
 
 @font-face {
-  font-family: 'Inter Fallback';
+  font-family: 'Familjen Fallback';
   src: local('Arial'), local('Liberation Sans');
-  size-adjust: 107%;
-  ascent-override: 90.5%;
-  descent-override: 22.5%;
+  size-adjust: 97.9%;
+  ascent-override: 104.6%;
+  descent-override: 23%;
   line-gap-override: 0%;
 }
 
 @font-face {
-  font-family: 'Fraunces Fallback';
-  src: local('Georgia'), local('Gelasio');
-  size-adjust: 108.6%;
-  ascent-override: 90.1%;
-  descent-override: 23.5%;
+  font-family: 'Hanken Fallback';
+  src: local('Arial'), local('Liberation Sans');
+  size-adjust: 102.9%;
+  ascent-override: 97.2%;
+  descent-override: 29.5%;
   line-gap-override: 0%;
 }
 
@@ -98,8 +100,9 @@ select {
   --space-xl: 4rem;
   --space-2xl: clamp(4.5rem, 3.5rem + 5vw, 8rem);
 
-  --font-display: 'Fraunces Variable', 'Fraunces Fallback', 'Iowan Old Style', Georgia, serif;
-  --font-body: 'Inter Variable', 'Inter Fallback', system-ui, -apple-system, sans-serif;
+  /* Display = Familjen Grotesk (wght axis 400–700), body = Hanken Grotesk (100–900) */
+  --font-display: 'Familjen Grotesk Variable', 'Familjen Fallback', Arial, sans-serif;
+  --font-body: 'Hanken Grotesk Variable', 'Hanken Fallback', system-ui, -apple-system, sans-serif;
 
   --radius: 10px;
   --wrap: 68rem;
@@ -160,7 +163,7 @@ select {
    @font-face only fetches files for families actually used */
 @media (prefers-reduced-data: reduce) {
   :root {
-    --font-display: 'Iowan Old Style', Georgia, serif;
+    --font-display: 'Helvetica Neue', Arial, system-ui, sans-serif;
     --font-body: system-ui, -apple-system, sans-serif;
   }
 }
@@ -217,12 +220,15 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Section heads and card titles sit at the display face's regular weight;
+   only the h1 goes to 700 (see .hero h1 / .wordmark). */
 h1,
 h2,
 h3 {
   font-family: var(--font-display);
-  font-weight: 560;
-  line-height: 1.12;
+  font-weight: 400;
+  line-height: 1.14;
+  letter-spacing: -0.01em;
   text-wrap: balance;
 }
 
@@ -329,7 +335,7 @@ main[tabindex='-1']:focus-visible {
 
 .wordmark {
   font-family: var(--font-display);
-  font-weight: 640;
+  font-weight: 700;
   font-size: var(--step-1);
   text-decoration: none;
 }
@@ -354,7 +360,7 @@ main[tabindex='-1']:focus-visible {
   border-radius: 99px;
   color: var(--ink-muted);
   font-size: var(--step--1);
-  font-weight: 550;
+  font-weight: 500;
   cursor: pointer;
   visibility: hidden;
   transition:
@@ -417,15 +423,14 @@ main[tabindex='-1']:focus-visible {
 
 .hero h1 {
   font-size: var(--step-5);
-  font-weight: 620;
-  letter-spacing: -0.015em;
+  font-weight: 700;
+  letter-spacing: -0.025em;
 }
 
 .hero .tagline {
-  font-family: var(--font-display);
-  font-style: italic;
+  font-family: var(--font-body);
   font-size: var(--step-2);
-  font-weight: 420;
+  font-weight: 400;
   color: var(--ink-muted);
   margin-top: var(--space-s);
 }
@@ -435,11 +440,11 @@ main[tabindex='-1']:focus-visible {
   margin-top: var(--space-l);
   font-size: var(--step-1);
   line-height: 1.55;
-  font-weight: 380;
+  font-weight: 400;
 }
 
 .hero .intro strong {
-  font-weight: 640;
+  font-weight: 600;
 }
 
 /* Kinetic name: JS splits the h1 into masked letters (aria-label keeps the
@@ -454,14 +459,14 @@ main[tabindex='-1']:focus-visible {
   display: inline-block;
   overflow: hidden;
   text-align: center;
-  /* keep descenders and serif overshoot visible inside the mask */
+  /* keep descenders and overshoot visible inside the mask */
   padding-bottom: 0.14em;
   margin-bottom: -0.14em;
 }
 
 .hero-letter {
   display: inline-block;
-  font-variation-settings: 'wght' var(--wght, 620);
+  font-variation-settings: 'wght' var(--wght, 700);
 }
 
 /* ---------- Sections ---------- */
@@ -590,7 +595,7 @@ main[tabindex='-1']:focus-visible {
 
 .card .kicker {
   font-size: var(--step--1);
-  font-weight: 620;
+  font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--accent);
@@ -636,7 +641,7 @@ main[tabindex='-1']:focus-visible {
 .card-links a {
   display: inline-block;
   padding-block: 0.3em;
-  font-weight: 560;
+  font-weight: 500;
   color: var(--accent);
   text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
 }
@@ -673,7 +678,7 @@ main[tabindex='-1']:focus-visible {
 
 .media-item .kicker {
   font-size: var(--step--1);
-  font-weight: 620;
+  font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--accent);
@@ -727,7 +732,7 @@ main[tabindex='-1']:focus-visible {
 .post-title {
   font-family: var(--font-display);
   font-size: var(--step-1);
-  font-weight: 540;
+  font-weight: 500;
 }
 
 .post-meta {
@@ -825,7 +830,7 @@ main[tabindex='-1']:focus-visible {
   color: var(--ink);
   font-family: var(--font-display);
   font-size: var(--step-1);
-  font-weight: 540;
+  font-weight: 500;
   margin-bottom: var(--space-s);
 }
 
