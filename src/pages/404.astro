@@ -1,0 +1,14 @@
+---
+import Base from '../layouts/Base.astro';
+import { SITE } from '../data/site';
+---
+
+<Base title={`Not found — ${SITE.firstName} ${SITE.lastName}`.trim()}>
+  <main id="main" tabindex="-1">
+    <section class="hero wrap" aria-labelledby="nf-heading">
+      <h1 id="nf-heading">Not found</h1>
+      <p class="tagline">That page isn’t one of the bets.</p>
+      <p class="intro"><a href="/">Back to the front page</a></p>
+    </section>
+  </main>
+</Base>

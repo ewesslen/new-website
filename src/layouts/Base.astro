@@ -1,6 +1,7 @@
 ---
 import '@fontsource-variable/inter';
 import '@fontsource-variable/fraunces';
+import '@fontsource-variable/fraunces/wght-italic.css';
 import '../styles/global.css';
 import { SITE, SOCIALS, NEWSLETTER } from '../data/site';
 
@@ -27,6 +28,22 @@ const socials = SOCIALS.filter((s) => s.url);
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
+    {
+      /* Absolute URLs require `site` in astro.config.mjs — set it and these
+         light up; until then no broken relative URLs are emitted. */
+      Astro.site && (
+        <>
+          <link rel="canonical" href={new URL(Astro.url.pathname, Astro.site)} />
+          <meta property="og:url" content={new URL(Astro.url.pathname, Astro.site)} />
+          <meta property="og:image" content={new URL('/og.png', Astro.site)} />
+          <meta property="og:image:width" content="1200" />
+          <meta property="og:image:height" content="630" />
+          <meta property="og:image:alt" content={`${SITE.firstName} — ${SITE.tagline}`} />
+          <meta name="twitter:card" content="summary_large_image" />
+          <meta name="twitter:image" content={new URL('/og.png', Astro.site)} />
+        </>
+      )
+    }
     <script is:inline>
       // Pre-paint motion state: explicit choice (localStorage) wins, else OS.
       // `motion-pending` pre-hides reveal targets, with a failsafe timeout so

@@ -14,7 +14,7 @@ import { chromium } from 'playwright';
 import { AxeBuilder } from '@axe-core/playwright';
 
 const DIST = new URL('../dist', import.meta.url).pathname;
-const PAGES = ['/', '/writing/'];
+const PAGES = ['/', '/writing/', '/404.html'];
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',

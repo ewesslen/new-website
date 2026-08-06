@@ -10,6 +10,7 @@
     "check": "astro check",
     "a11y": "node scripts/a11y.mjs",
     "keyboard": "node scripts/keyboard.mjs",
+    "og": "node scripts/og.mjs",
     "contrast": "node scripts/contrast.mjs"
   },
   "dependencies": {

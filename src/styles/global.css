@@ -469,6 +469,11 @@ main[tabindex='-1']:focus-visible {
   border-top: 1px solid var(--hairline);
 }
 
+/* Breathing room above anchor-jump targets */
+[id] {
+  scroll-margin-top: var(--space-m);
+}
+
 .section-head {
   display: flex;
   align-items: baseline;
@@ -519,6 +524,9 @@ main[tabindex='-1']:focus-visible {
 .card::before {
   content: '';
   position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
   inset: 0 0 auto 0;
   height: 3px;
   background: linear-gradient(90deg, var(--accent), var(--accent-2));
@@ -533,6 +541,10 @@ main[tabindex='-1']:focus-visible {
   html[data-motion='on'] .card::after {
     content: '';
     position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
     inset: 0;
     pointer-events: none;
     opacity: 0;
@@ -553,6 +565,8 @@ main[tabindex='-1']:focus-visible {
    identical on keyboard focus, and instant (but present) when motion off */
 .card:focus-within,
 .card:hover {
+  /* solid fallback first — browsers without color-mix still shift color */
+  border-color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 45%, var(--hairline));
   transform: translateY(var(--lift));
   box-shadow: 0 14px 36px -18px color-mix(in srgb, var(--accent) 45%, transparent);
@@ -597,7 +611,9 @@ main[tabindex='-1']:focus-visible {
   font-weight: 600;
   letter-spacing: 0.04em;
   color: var(--accent);
-  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  /* solid fallback first — browsers without color-mix keep a border */
+  border: 1px solid currentColor;
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
   border-radius: 99px;
   padding: 0.1em 0.7em;
 }
@@ -903,5 +919,19 @@ html[data-motion='off']::view-transition-new(*) {
   }
   .now-list li::before {
     background: CanvasText;
+  }
+}
+
+/* ---------- Print ---------- */
+
+@media print {
+  .skip-link,
+  .motion-toggle,
+  .site-nav {
+    display: none;
+  }
+  .card {
+    box-shadow: none;
+    break-inside: avoid;
   }
 }

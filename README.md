@@ -23,6 +23,7 @@ npm run build && npm run keyboard   # automated keyboard walkthrough:
                    # skip link first + working, tab order = DOM order,
                    # visible focus indicator on every stop, no traps
 npm run check      # astro/TypeScript check
+npm run og         # regenerate public/og.png from scripts/og.html
 ```
 
 ## Deploy
@@ -33,8 +34,13 @@ with zero config:
 - **Vercel**: import the repo; framework preset "Astro" is auto-detected.
 - **Netlify**: build command `npm run build`, publish directory `dist`.
 
-Once the domain is decided, set `site` in `astro.config.mjs` (used for
-canonical/OG URLs).
+Once the domain is decided, set `site` in `astro.config.mjs` — the
+canonical link, `og:url`, and `og:image`/Twitter-card tags light up
+automatically (they're gated so no broken relative URLs ship before then).
+
+The social preview image is `public/og.png`, generated from
+`scripts/og.html` — after changing the name or tagline, keep that file in
+sync with `src/data/site.ts` and re-run `npm run og`.
 
 ## Filling in the TODOs
 
@@ -120,6 +126,14 @@ both motion states:
   webfont swap — measured CLS ≈ 0.
 - The motion bundle (~47 KB gz) is a deferred module; first paint never
   waits on it.
+
+## Browser support
+
+Evergreen browsers get everything. Older browsers degrade by design:
+`color-mix()` accents fall back to solid colors, `@view-transition`
+(Chrome/Edge, Safari 18.2+) falls back to normal navigation, `inset` has
+longhand fallbacks, and `:focus-visible`-less browsers keep their native
+focus rings (outlines are never removed). No polyfills shipped.
 
 ## Accessibility ground rules (all phases)
 

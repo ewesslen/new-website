@@ -150,8 +150,8 @@ async function heroEntrance(): Promise<void> {
   const unlock = () => {
     for (const mask of masks) mask.style.width = '';
   };
-  const tl = gsap.timeline({ defaults: { ease: 'power3.out' }, onComplete: unlock });
-  tl.to(letters, { yPercent: 0, '--wght': WGHT_REST, duration: 0.7, stagger: 0.045 });
+  const tl = gsap.timeline({ defaults: { ease: 'power4.out' }, onComplete: unlock });
+  tl.to(letters, { yPercent: 0, '--wght': WGHT_REST, duration: 0.75, stagger: 0.045 });
   if (tagline) {
     tl.to(tagline, { clipPath: 'inset(0 0% 0 0)', duration: 0.55, ease: 'power2.inOut' }, '-=0.35');
   }
