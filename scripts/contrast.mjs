@@ -5,34 +5,34 @@
  */
 
 const light = {
-  bg: '#faf7f2',
+  bg: '#f5f7fa',
   bgRaised: '#ffffff',
-  ink: '#201c16',
-  inkMuted: '#5c5546',
+  ink: '#161a26',
+  inkMuted: '#4e5769',
   accents: {
-    trellais: '#1d5c42',
-    'trellais-2': '#8a6d1f',
-    panodash: '#0b6b35',
-    ssd: '#6f5410',
+    trellais: '#14594a',
+    'trellais-2': '#7a6019',
+    panodash: '#0a6b4c',
+    ssd: '#6e551c',
     'stacking-sense': '#2b3cc4',
-    mwcapcon: '#8a4520',
-    geeqoid: '#6d28a8',
+    mwcapcon: '#8c4426',
+    geeqoid: '#5b32b5',
   },
 };
 
 const dark = {
-  bg: '#14110c',
-  bgRaised: '#1d1913',
-  ink: '#efeae0',
-  inkMuted: '#aaa291',
+  bg: '#0a0d18',
+  bgRaised: '#131828',
+  ink: '#e8ebf2',
+  inkMuted: '#9aa3b8',
   accents: {
-    trellais: '#d9ae53',
-    'trellais-2': '#6fbd97',
-    panodash: '#3ee07f',
-    ssd: '#ddbc63',
-    'stacking-sense': '#97a5ff',
-    mwcapcon: '#e39a6b',
-    geeqoid: '#c29bf0',
+    trellais: '#e3b961',
+    'trellais-2': '#63c6a0',
+    panodash: '#35e58c',
+    ssd: '#e2c170',
+    'stacking-sense': '#96a6ff',
+    mwcapcon: '#f0a07a',
+    geeqoid: '#bfa0ff',
   },
 };
 
