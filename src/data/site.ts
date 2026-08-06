@@ -20,6 +20,17 @@ export interface Venture {
   links: Link[];
 }
 
+/** Keys of the icon set in `src/components/SocialIcon.astro` */
+export type SocialPlatform = 'github' | 'linkedin' | 'x' | 'instagram' | 'facebook' | 'youtube';
+
+export interface Social {
+  platform: SocialPlatform;
+  /** The icon is decorative; this is the link's accessible name */
+  label: string;
+  /** Empty string = not rendered, so an unfilled profile is never a dead link */
+  url: string;
+}
+
 export interface Post {
   title: string;
   /** ISO date, rendered with <time datetime> */
@@ -31,7 +42,7 @@ export interface Post {
 
 export const SITE = {
   firstName: 'Erik',
-  lastName: '', // TODO: last name
+  lastName: 'Wesslen',
 
   /**
    * Positioning line. Three options, pick one (or edit):
@@ -41,7 +52,7 @@ export const SITE = {
    */
   tagline: 'One person. Several bets.',
 
-  title: 'Erik — One person. Several bets.',
+  title: 'Erik Wesslen — One person. Several bets.',
   description:
     'Solo founder building across AI, commerce, and publishing: Trellais, Panodash, Sport Shooting Depot, two newsletters, and a podcast.',
 
@@ -165,12 +176,19 @@ export const NOW = {
   ],
 };
 
-export const SOCIALS: Link[] = [
-  // TODO: fill in real profiles; empty urls are not rendered.
-  { label: 'X', url: '' },
-  { label: 'GitHub', url: '' },
-  { label: 'LinkedIn', url: '' },
-  { label: 'Email', url: '' }, // e.g. 'mailto:…'
+/**
+ * Footer social row. Rendered as icons (see `SocialIcon.astro`); the label is
+ * what assistive tech announces. Order here is the order on the page.
+ * TODO: fill in the remaining profile URLs — empty urls are not rendered,
+ * so the row simply shows the icons that have a destination.
+ */
+export const SOCIALS: Social[] = [
+  { platform: 'github', label: 'GitHub', url: 'https://github.com/ewesslen' },
+  { platform: 'linkedin', label: 'LinkedIn', url: '' }, // e.g. 'https://www.linkedin.com/in/…'
+  { platform: 'x', label: 'X', url: '' }, // e.g. 'https://x.com/…'
+  { platform: 'instagram', label: 'Instagram', url: '' }, // e.g. 'https://www.instagram.com/…'
+  { platform: 'facebook', label: 'Facebook', url: '' }, // e.g. 'https://www.facebook.com/…'
+  { platform: 'youtube', label: 'YouTube', url: '' }, // e.g. 'https://www.youtube.com/@…'
 ];
 
 export const NEWSLETTER = {

@@ -1,5 +1,5 @@
 /* ============================================================
-   Erik — personal site
+   Erik Wesslen — personal site
    Phase 1: tokens, type, layout. No motion in this file yet;
    motion arrives in Phase 3 as a progressive enhancement.
    ============================================================ */
@@ -782,19 +782,40 @@ main[tabindex='-1']:focus-visible {
   gap: var(--space-l);
 }
 
+/* Footer social row. The glyph is decorative (aria-hidden) — the link
+   carries a visually-hidden name — and the padded box keeps the target
+   comfortably past the WCAG 2.5.8 minimum at every icon size. */
 .social-nav ul {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-s) var(--space-m);
+  gap: var(--space-2xs);
   list-style: none;
   padding: 0;
+  /* pull the icons' own padding off the edge so they align optically */
+  margin-inline: -0.6rem;
 }
 
 .social-nav a {
-  display: inline-block;
-  padding-block: 0.3em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  border-radius: 99px;
+  color: var(--ink-muted);
+  text-decoration: none;
+  transition:
+    color var(--dur-1) ease,
+    background-color var(--dur-1) ease;
+}
+
+.social-nav a:hover {
   color: var(--ink);
-  font-weight: 550;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.social-icon {
+  display: block;
 }
 
 .subscribe-label {
@@ -839,6 +860,7 @@ main[tabindex='-1']:focus-visible {
 .footer-meta {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-s) var(--space-m);
   justify-content: space-between;
 }

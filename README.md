@@ -1,4 +1,4 @@
-# Erik — personal site
+# Erik Wesslen — personal site
 
 A personal hub for a solo founder running several ventures in parallel.
 Built with [Astro](https://astro.build), TypeScript, hand-written CSS, and
@@ -46,7 +46,6 @@ sync with `src/data/site.ts` and re-run `npm run og`.
 
 Everything marked `TODO` lives in **`src/data/site.ts`** — one file:
 
-- [ ] `lastName` — last name for the hero + page titles
 - [ ] `tagline` — three positioning-line options are in the comment; pick one:
   1. "One person. Several bets." *(currently live)*
   2. "Building several things at once — on purpose."
@@ -56,7 +55,10 @@ Everything marked `TODO` lives in **`src/data/site.ts`** — one file:
 - [ ] Stacking Sense URL
 - [ ] MWCAPCON URL
 - [ ] Geeqoid URL
-- [ ] Social links (X, GitHub, LinkedIn, email)
+- [ ] Social profile URLs — `SOCIALS` drives the footer icon row
+      (GitHub is filled in; LinkedIn, X, Instagram, Facebook, YouTube
+      are still empty). To add a platform, add an entry plus its glyph in
+      `src/components/SocialIcon.astro`.
 - [ ] `NEWSLETTER.formAction` — Beehiiv embed-form action URL (renders an
       inline subscribe form) and/or `subscribeUrl` (fallback link).
       Also confirm the subscribe target is Stacking Sense.
@@ -79,7 +81,7 @@ component needs no changes.
 src/
   data/site.ts        ← all content + TODOs (start here)
   layouts/Base.astro   ← <head>, header/nav, footer, skip link
-  components/          ← VentureCard, MediaItem, PostItem
+  components/          ← VentureCard, MediaItem, PostItem, SocialIcon
   pages/index.astro    ← the one-pager
   pages/writing.astro  ← "view all" writing page
   styles/global.css    ← design tokens, type scale, all styling
