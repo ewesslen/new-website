@@ -55,10 +55,10 @@ Everything marked `TODO` lives in **`src/data/site.ts`** — one file:
 - [ ] Stacking Sense URL
 - [ ] MWCAPCON URL
 - [ ] Geeqoid URL
-- [ ] Social profile URLs — `SOCIALS` drives the footer icon row
-      (GitHub is filled in; LinkedIn, X, Instagram, Facebook, YouTube
-      are still empty). To add a platform, add an entry plus its glyph in
-      `src/components/SocialIcon.astro`.
+- [ ] YouTube URL — the last empty entry in `SOCIALS`, which drives the
+      footer icon row (GitHub, LinkedIn, X, Instagram, and Facebook are
+      filled in). Clearing a url hides that icon; to add a platform, add an
+      entry plus its glyph in `src/components/SocialIcon.astro`.
 - [ ] `NEWSLETTER.formAction` — Beehiiv embed-form action URL (renders an
       inline subscribe form) and/or `subscribeUrl` (fallback link).
       Also confirm the subscribe target is Stacking Sense.

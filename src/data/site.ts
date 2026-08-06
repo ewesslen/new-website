@@ -179,16 +179,17 @@ export const NOW = {
 /**
  * Footer social row. Rendered as icons (see `SocialIcon.astro`); the label is
  * what assistive tech announces. Order here is the order on the page.
- * TODO: fill in the remaining profile URLs — empty urls are not rendered,
- * so the row simply shows the icons that have a destination.
+ * An empty url hides that icon — clearing one takes a profile off the site
+ * without losing the entry.
  */
 export const SOCIALS: Social[] = [
   { platform: 'github', label: 'GitHub', url: 'https://github.com/ewesslen' },
-  { platform: 'linkedin', label: 'LinkedIn', url: '' }, // e.g. 'https://www.linkedin.com/in/…'
-  { platform: 'x', label: 'X', url: '' }, // e.g. 'https://x.com/…'
-  { platform: 'instagram', label: 'Instagram', url: '' }, // e.g. 'https://www.instagram.com/…'
-  { platform: 'facebook', label: 'Facebook', url: '' }, // e.g. 'https://www.facebook.com/…'
-  { platform: 'youtube', label: 'YouTube', url: '' }, // e.g. 'https://www.youtube.com/@…'
+  { platform: 'linkedin', label: 'LinkedIn', url: 'https://www.linkedin.com/in/erikwesslen/' },
+  { platform: 'x', label: 'X', url: 'https://x.com/erikwesslen' },
+  { platform: 'instagram', label: 'Instagram', url: 'https://www.instagram.com/ewesslen/' },
+  { platform: 'facebook', label: 'Facebook', url: 'https://www.facebook.com/ewesslen' },
+  // Hidden for now — set the url to show it: 'https://www.youtube.com/@…'
+  { platform: 'youtube', label: 'YouTube', url: '' },
 ];
 
 export const NEWSLETTER = {
