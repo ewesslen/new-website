@@ -221,7 +221,7 @@ body {
 }
 
 /* Section heads and card titles sit at the display face's regular weight;
-   only the h1 goes to 700 (see .hero h1 / .wordmark). */
+   the hero h1 and the wordmark go heavier (see .hero h1 / .wordmark). */
 h1,
 h2,
 h3 {
@@ -421,9 +421,11 @@ main[tabindex='-1']:focus-visible {
   padding-block: var(--space-2xl) var(--space-2xl);
 }
 
+/* Rests below the face's 700 ceiling so the pointer wave has somewhere to
+   pull to (WGHT_REST/WGHT_BULGE in src/scripts/motion.ts) */
 .hero h1 {
   font-size: var(--step-5);
-  font-weight: 700;
+  font-weight: 560;
   letter-spacing: -0.025em;
 }
 
@@ -466,7 +468,7 @@ main[tabindex='-1']:focus-visible {
 
 .hero-letter {
   display: inline-block;
-  font-variation-settings: 'wght' var(--wght, 700);
+  font-variation-settings: 'wght' var(--wght, 560);
 }
 
 /* ---------- Sections ---------- */

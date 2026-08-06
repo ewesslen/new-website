@@ -97,15 +97,19 @@ Two variable grotesks, both self-hosted via Fontsource, wired through
 
 | Role | Face | Weight |
 | --- | --- | --- |
-| `h1` (hero, wordmark) | Familjen Grotesk | 700 |
+| `h1` (hero name) | Familjen Grotesk | 560, pulling to 700 |
+| Wordmark | Familjen Grotesk | 700 |
 | Section heads, card titles | Familjen Grotesk | 400 |
 | Subtitles (hero tagline, section notes) | Hanken Grotesk | 400 |
 | Body copy | Hanken Grotesk | 400 |
 
-**Familjen Grotesk's `wght` axis stops at 700**, which is also the h1's
-resting weight — so the hero's pointer wave thins letters rather than
-thickening them (`WGHT_NEAR` in `src/scripts/motion.ts`). Hanken Grotesk
-runs the full 100–900, so body weights have room either way.
+**Familjen Grotesk's `wght` axis stops at 700.** The hero h1 deliberately
+rests below that ceiling, at 560, so the kinetic hero has headroom to pull
+into: the entrance runs 400 → 560 and the pointer wave bulges toward 700
+(`WGHT_START` / `WGHT_REST` / `WGHT_BULGE` in `src/scripts/motion.ts`).
+Keep `WGHT_REST` under `WGHT_BULGE` — if they meet, the wave silently
+stops doing anything. Hanken Grotesk runs the full 100–900, so body
+weights have room either way.
 
 Both fallbacks are Arial (Liberation Sans on Linux), with `size-adjust`
 and ascent/descent overrides measured from each webfont's own tables —
