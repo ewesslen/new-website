@@ -115,8 +115,7 @@ export const MEDIA: Venture[] = [
     description:
       'On compounding small advantages across technology, AI, and modern living. Runs on Beehiiv.',
     links: [
-      // TODO: Stacking Sense URL
-      // { label: 'Read', url: 'https://…' },
+    { label: 'Read', url: 'https://stackingsense.com' },
     ],
   },
   {
@@ -134,10 +133,9 @@ export const MEDIA: Venture[] = [
     slug: 'geeqoid',
     kicker: 'Podcast',
     logo: 'geeqoid',
-    description: 'Co-hosted with Jarrad.',
+    description: 'Two geeks. One pod. Infinite possibilites. Erik and Jarrad cover all the latest in AI, tech, gaming, entertainment, and culture on a weekly basis.',
     links: [
-      // TODO: Geeqoid URL
-      // { label: 'Listen', url: 'https://…' },
+    { label: 'Listen', url: 'https://geeqoid.com' },
     ],
   },
 ];
