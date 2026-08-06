@@ -1,0 +1,75 @@
+---
+import Base from '../layouts/Base.astro';
+import VentureCard from '../components/VentureCard.astro';
+import MediaItem from '../components/MediaItem.astro';
+import PostItem from '../components/PostItem.astro';
+import { SITE, VENTURES, MEDIA, POSTS, NOW } from '../data/site';
+
+const nowUpdated = new Date(NOW.updated + 'T00:00:00').toLocaleDateString('en-US', {
+  year: 'numeric',
+  month: 'long',
+});
+---
+
+<Base>
+  <main id="main">
+    <section class="hero wrap" aria-labelledby="hero-name">
+      <h1 id="hero-name">{SITE.firstName} {SITE.lastName}</h1>
+      <p class="tagline">{SITE.tagline}</p>
+      <p class="intro">
+        I’m a solo founder working across AI, commerce, and publishing.
+        <strong>Trellais</strong> puts AI to work for small businesses.
+        <strong>Panodash</strong> turns your new tab into an ambient metrics dashboard.
+        <strong>Sport Shooting Depot</strong> outfits competitive shooters. On the side:
+        two <strong>newsletters</strong> and a <strong>podcast</strong>.
+      </p>
+    </section>
+
+    <section class="section" id="building" aria-labelledby="building-heading">
+      <div class="wrap">
+        <div class="section-head">
+          <h2 id="building-heading">Building</h2>
+          <p class="section-note">Current ventures, run in parallel.</p>
+        </div>
+        <div class="card-grid">
+          {VENTURES.map((venture) => <VentureCard venture={venture} />)}
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="media" aria-labelledby="media-heading">
+      <div class="wrap">
+        <div class="section-head">
+          <h2 id="media-heading">Publishing &amp; Media</h2>
+        </div>
+        <ul class="media-list">
+          {MEDIA.map((item) => <MediaItem item={item} />)}
+        </ul>
+      </div>
+    </section>
+
+    <section class="section" id="writing" aria-labelledby="writing-heading">
+      <div class="wrap">
+        <div class="section-head">
+          <h2 id="writing-heading">Writing</h2>
+          <p class="section-note"><a href="/writing/">View all</a></p>
+        </div>
+        <ul class="post-list">
+          {POSTS.map((post) => <PostItem post={post} />)}
+        </ul>
+      </div>
+    </section>
+
+    <section class="section" id="now" aria-labelledby="now-heading">
+      <div class="wrap">
+        <div class="section-head">
+          <h2 id="now-heading">Now</h2>
+        </div>
+        <ul class="now-list">
+          {NOW.items.map((item) => <li>{item}</li>)}
+        </ul>
+        <p class="now-updated">Updated {nowUpdated}</p>
+      </div>
+    </section>
+  </main>
+</Base>

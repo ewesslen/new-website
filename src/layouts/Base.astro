@@ -1,0 +1,102 @@
+---
+import '@fontsource-variable/inter';
+import '@fontsource-variable/fraunces';
+import '../styles/global.css';
+import { SITE, SOCIALS, NEWSLETTER } from '../data/site';
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const { title = SITE.title, description = SITE.description } = Astro.props;
+const year = new Date().getFullYear();
+const socials = SOCIALS.filter((s) => s.url);
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#faf7f2" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#14110c" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header">
+      <div class="wrap">
+        <a class="wordmark" href="/">{SITE.firstName}</a>
+        <nav class="site-nav" aria-label="Site">
+          <ul>
+            <li><a href="/#building">Building</a></li>
+            <li><a href="/#media">Media</a></li>
+            <li><a href="/#writing">Writing</a></li>
+            <li><a href="/#now">Now</a></li>
+          </ul>
+        </nav>
+      </div>
+    </header>
+
+    <slot />
+
+    <footer class="site-footer">
+      <div class="wrap">
+        {
+          socials.length > 0 && (
+            <nav class="social-nav" aria-label="Social">
+              <ul>
+                {socials.map((s) => (
+                  <li>
+                    <a href={s.url}>{s.label}</a>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          )
+        }
+
+        <div class="subscribe">
+          {
+            NEWSLETTER.formAction ? (
+              <form method="post" action={NEWSLETTER.formAction}>
+                <label class="subscribe-label" for="subscribe-email">
+                  Get {NEWSLETTER.name} in your inbox
+                </label>
+                <div class="subscribe-row">
+                  <input
+                    type="email"
+                    id="subscribe-email"
+                    name="email"
+                    required
+                    autocomplete="email"
+                    placeholder="you@example.com"
+                  />
+                  <button type="submit">Subscribe</button>
+                </div>
+              </form>
+            ) : NEWSLETTER.subscribeUrl ? (
+              <p>
+                <a href={NEWSLETTER.subscribeUrl}>Subscribe to {NEWSLETTER.name}</a>
+              </p>
+            ) : (
+              <p>Newsletter signup coming soon.</p>
+            )
+          }
+        </div>
+
+        <div class="footer-meta">
+          <p>© {year} {SITE.firstName} {SITE.lastName}</p>
+          <p>{SITE.tagline}</p>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

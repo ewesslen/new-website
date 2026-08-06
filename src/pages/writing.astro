@@ -1,0 +1,21 @@
+---
+import Base from '../layouts/Base.astro';
+import PostItem from '../components/PostItem.astro';
+import { SITE, POSTS } from '../data/site';
+---
+
+<Base title={`Writing — ${SITE.firstName} ${SITE.lastName}`.trim()}>
+  <main id="main">
+    <section class="hero wrap" aria-labelledby="writing-heading">
+      <h1 id="writing-heading">Writing</h1>
+      <p class="tagline">Posts, essays, and notes.</p>
+    </section>
+    <div class="section">
+      <div class="wrap">
+        <ul class="post-list">
+          {POSTS.map((post) => <PostItem post={post} />)}
+        </ul>
+      </div>
+    </div>
+  </main>
+</Base>

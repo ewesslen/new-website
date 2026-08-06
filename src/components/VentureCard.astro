@@ -1,0 +1,30 @@
+---
+import type { Venture } from '../data/site';
+
+interface Props {
+  venture: Venture;
+}
+
+const { venture } = Astro.props;
+const links = venture.links.filter((l) => l.url);
+---
+
+<article class="card" data-accent={venture.slug}>
+  <p class="kicker">{venture.kicker}</p>
+  <h3>
+    {venture.name}
+    {venture.status && <span class="status">{venture.status}</span>}
+  </h3>
+  <p>{venture.description}</p>
+  {
+    links.length > 0 && (
+      <ul class="card-links">
+        {links.map((link) => (
+          <li>
+            <a href={link.url}>{link.label}</a>
+          </li>
+        ))}
+      </ul>
+    )
+  }
+</article>

@@ -1,0 +1,27 @@
+---
+import type { Venture } from '../data/site';
+
+interface Props {
+  item: Venture;
+}
+
+const { item } = Astro.props;
+const links = item.links.filter((l) => l.url);
+---
+
+<li class="media-item" data-accent={item.slug}>
+  <p class="kicker">{item.kicker}</p>
+  <h3>{item.name}</h3>
+  <p>{item.description}</p>
+  {
+    links.length > 0 && (
+      <ul class="card-links">
+        {links.map((link) => (
+          <li>
+            <a href={link.url}>{link.label}</a>
+          </li>
+        ))}
+      </ul>
+    )
+  }
+</li>
