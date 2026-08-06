@@ -1,0 +1,26 @@
+---
+/**
+ * Stacking Sense's lockup: the name in caps with its two words at opposite
+ * ends of the weight range — 300 against 700 — which is how the newsletter
+ * brands itself.
+ *
+ * Set in the *body* face: Familjen Grotesk's wght axis bottoms out at 400,
+ * so the display face cannot reach the light half of that contrast. Hanken
+ * Grotesk runs 100–900 and is already loaded.
+ *
+ * The caps come from `text-transform`, so the DOM text stays "Stacking
+ * Sense" — the accessible name, copy/paste, and find-in-page are unaffected
+ * and no visually hidden duplicate is needed.
+ */
+interface Props {
+  name: string;
+}
+
+const { name } = Astro.props;
+const [first, ...rest] = name.split(' ');
+const tail = rest.join(' ');
+---
+
+<span class="lockup"
+  ><span class="lockup-light">{first}</span>{tail && <> <span class="lockup-bold">{tail}</span></>}</span
+>

@@ -19,11 +19,12 @@ export interface Venture {
   status?: string;
   links: Link[];
   /**
-   * Renders the brand wordmark in place of the title text. `name` stays the
-   * accessible name, so the heading still reads correctly to assistive tech
+   * Renders the brand's own treatment of the title in place of plain text —
+   * artwork for some, a type lockup for others. `name` stays the accessible
+   * name either way, so the heading still reads correctly to assistive tech
    * and in the document outline. Keys map to components in MediaItem.astro.
    */
-  logo?: 'geeqoid';
+  logo?: 'geeqoid' | 'stacking-sense';
 }
 
 /** Keys of the icon set in `src/components/SocialIcon.astro` */
@@ -112,11 +113,10 @@ export const MEDIA: Venture[] = [
     name: 'Stacking Sense',
     slug: 'stacking-sense',
     kicker: 'Newsletter',
+    logo: 'stacking-sense',
     description:
       'On compounding small advantages across technology, AI, and modern living. Runs on Beehiiv.',
-    links: [
-    { label: 'Read', url: 'https://stackingsense.com' },
-    ],
+    links: [{ label: 'Read', url: 'https://stackingsense.com' }],
   },
   {
     name: 'MWCAPCON',
@@ -133,10 +133,9 @@ export const MEDIA: Venture[] = [
     slug: 'geeqoid',
     kicker: 'Podcast',
     logo: 'geeqoid',
-    description: 'Two geeks. One pod. Infinite possibilites. Erik and Jarrad cover all the latest in AI, tech, gaming, entertainment, and culture on a weekly basis.',
-    links: [
-    { label: 'Listen', url: 'https://geeqoid.com' },
-    ],
+    description:
+      'Two geeks. One pod. Infinite possibilities. Erik and Jarrad cover all the latest in AI, tech, gaming, entertainment, and culture on a weekly basis.',
+    links: [{ label: 'Listen', url: 'https://geeqoid.com' }],
   },
 ];
 

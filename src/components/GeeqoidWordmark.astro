@@ -6,8 +6,14 @@
  * under forced colors. The original's clipPath was a rect the size of the
  * viewBox, so it is dropped along with its id.
  *
- * Always decorative — the heading that wraps it carries the accessible name.
+ * The artwork itself is decorative; the name rides along as hidden text so
+ * the heading that wraps it keeps its accessible name and outline entry.
  */
+interface Props {
+  name: string;
+}
+
+const { name } = Astro.props;
 ---
 
 <svg
@@ -39,3 +45,4 @@
     d="M462.637 56.091H425.547V21.6936H442.767V41.9029H462.637C472.16 41.9029 479.028 36.624 479.028 28.7043C479.028 20.7846 471.908 15.2584 462.637 15.2584H425.547L436.476 0.906218H462.637C482.011 0.906218 496.003 12.0421 496.003 27.9621C496.003 43.8821 481.846 56.091 462.637 56.091Z"
   ></path>
 </svg>
+<span class="visually-hidden">{name}</span>

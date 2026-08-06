@@ -706,6 +706,28 @@ main[tabindex='-1']:focus-visible {
   max-width: 100%;
 }
 
+/* A brand's own type lockup standing in for the title. Set in the body face
+   because the display face's wght axis stops at 400 — it cannot reach the
+   light end of a 300/700 pairing. Caps come from text-transform, so the DOM
+   text (and the accessible name) stays in normal case. */
+.lockup {
+  font-family: var(--font-body);
+  text-transform: uppercase;
+  letter-spacing: 0.02em; /* caps need air; the heading default is negative */
+  /* The body face is deeper than the display face, so its inline box would
+     push this heading 2px taller than its siblings. Collapsing the leading
+     keeps every media title on the same rhythm. */
+  line-height: 1;
+}
+
+.lockup-light {
+  font-weight: 300;
+}
+
+.lockup-bold {
+  font-weight: 700;
+}
+
 .media-item p:not(.kicker) {
   color: var(--ink-muted);
   max-width: var(--measure);
