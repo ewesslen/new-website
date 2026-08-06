@@ -27,6 +27,26 @@ const socials = SOCIALS.filter((s) => s.url);
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
+    <script is:inline>
+      // Pre-paint motion state: explicit choice (localStorage) wins, else OS.
+      // `motion-pending` pre-hides reveal targets, with a failsafe timeout so
+      // content can never stay hidden if the motion module fails to load.
+      (() => {
+        const d = document.documentElement;
+        d.classList.add('js');
+        let stored = null;
+        try {
+          stored = localStorage.getItem('motion');
+        } catch {}
+        const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const on = stored ? stored === 'on' : !reduced;
+        d.dataset.motion = on ? 'on' : 'off';
+        if (on) {
+          d.classList.add('motion-pending');
+          setTimeout(() => d.classList.remove('motion-pending'), 1600);
+        }
+      })();
+    </script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -34,14 +54,20 @@ const socials = SOCIALS.filter((s) => s.url);
     <header class="site-header">
       <div class="wrap">
         <a class="wordmark" href="/">{SITE.firstName}</a>
-        <nav class="site-nav" aria-label="Site">
-          <ul>
-            <li><a href="/#building">Building</a></li>
-            <li><a href="/#media">Media</a></li>
-            <li><a href="/#writing">Writing</a></li>
-            <li><a href="/#now">Now</a></li>
-          </ul>
-        </nav>
+        <div class="site-header-tools">
+          <nav class="site-nav" aria-label="Site">
+            <ul>
+              <li><a href="/#building">Building</a></li>
+              <li><a href="/#media">Media</a></li>
+              <li><a href="/#writing">Writing</a></li>
+              <li><a href="/#now">Now</a></li>
+            </ul>
+          </nav>
+          <button class="motion-toggle" type="button" data-motion-toggle data-magnetic aria-pressed="false">
+            <span class="motion-toggle-dot" aria-hidden="true"></span>
+            Motion
+          </button>
+        </div>
       </div>
     </header>
 
@@ -98,5 +124,9 @@ const socials = SOCIALS.filter((s) => s.url);
         </div>
       </div>
     </footer>
+
+    <script>
+      import '../scripts/motion';
+    </script>
   </body>
 </html>

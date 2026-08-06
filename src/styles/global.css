@@ -4,6 +4,30 @@
    motion arrives in Phase 3 as a progressive enhancement.
    ============================================================ */
 
+/* ---------- Metric-matched font fallbacks ----------
+   Local fonts adjusted to the webfonts' real metrics (measured from the
+   font tables: Inter ascent 96.87%/descent 24.12%/avg advance 0.5352em;
+   Fraunces 97.8%/25.5%/0.595em) so the swap causes no layout shift.
+   Liberation Sans and Gelasio are the metric-compatible Linux stand-ins. */
+
+@font-face {
+  font-family: 'Inter Fallback';
+  src: local('Arial'), local('Liberation Sans');
+  size-adjust: 107%;
+  ascent-override: 90.5%;
+  descent-override: 22.5%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: 'Fraunces Fallback';
+  src: local('Georgia'), local('Gelasio');
+  size-adjust: 108.6%;
+  ascent-override: 90.1%;
+  descent-override: 23.5%;
+  line-gap-override: 0%;
+}
+
 /* ---------- Reset ---------- */
 
 *,
@@ -72,8 +96,8 @@ select {
   --space-xl: 4rem;
   --space-2xl: clamp(4.5rem, 3.5rem + 5vw, 8rem);
 
-  --font-display: 'Fraunces Variable', 'Iowan Old Style', Georgia, serif;
-  --font-body: 'Inter Variable', system-ui, -apple-system, sans-serif;
+  --font-display: 'Fraunces Variable', 'Fraunces Fallback', 'Iowan Old Style', Georgia, serif;
+  --font-body: 'Inter Variable', 'Inter Fallback', system-ui, -apple-system, sans-serif;
 
   --radius: 10px;
   --wrap: 68rem;
@@ -97,6 +121,37 @@ select {
     --accent-mwcapcon: #e39a6b;
     --accent-geeqoid: #c29bf0;
   }
+}
+
+/* ---------- Motion gating ----------
+   One knob for all CSS motion: durations collapse to 0s (instant state
+   changes, still functional) unless motion is enabled. The `data-motion`
+   attribute is set pre-paint from localStorage/OS preference; when JS is
+   disabled the attribute is absent and the OS media query decides. */
+
+:root {
+  --dur-1: 0s; /* micro interactions: hovers, color, lift */
+  --dur-2: 0s; /* larger: spotlight fades */
+  --lift: 0px; /* hover lift distance — stays 0 when motion is off */
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-motion='off']) {
+    --dur-1: 0.18s;
+    --dur-2: 0.45s;
+    --lift: -3px;
+  }
+}
+
+:root[data-motion='on'] {
+  --dur-1: 0.18s;
+  --dur-2: 0.45s;
+  --lift: -3px;
+}
+
+/* GSAP owns inline styles during entrance reveals — CSS transitions wait */
+.is-animating {
+  transition: none !important;
 }
 
 /* Skip webfont downloads when the user asks for less data;
@@ -137,14 +192,18 @@ select {
 /* ---------- Base ---------- */
 
 html {
-  /* Smooth anchor scrolling is motion → only without a reduced-motion preference */
+  /* Smooth anchor scrolling is motion → gated like everything else */
   scroll-behavior: auto;
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  html {
+  html:not([data-motion='off']) {
     scroll-behavior: smooth;
   }
+}
+
+html[data-motion='on'] {
+  scroll-behavior: smooth;
 }
 
 body {
@@ -180,6 +239,22 @@ a {
 a:hover {
   text-decoration-thickness: 2px;
   text-decoration-color: currentColor;
+}
+
+a {
+  transition:
+    color var(--dur-1) ease,
+    text-decoration-color var(--dur-1) ease;
+}
+
+/* GSAP drives transforms on magnetic elements — keep CSS out of it,
+   and give inline links a transformable box */
+[data-magnetic] {
+  transition-property: color, text-decoration-color, border-color, box-shadow;
+}
+
+a[data-magnetic] {
+  display: inline-block;
 }
 
 :focus-visible {
@@ -257,6 +332,56 @@ main[tabindex='-1']:focus-visible {
   text-decoration: none;
 }
 
+.site-header-tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-s) var(--space-m);
+}
+
+/* Visible motion toggle. Reserved space pre-JS (visibility, not display)
+   so revealing it causes zero layout shift; without JS there is no motion,
+   so the control never appears. */
+.motion-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.35em 0.9em;
+  background: transparent;
+  border: 1px solid var(--hairline);
+  border-radius: 99px;
+  color: var(--ink-muted);
+  font-size: var(--step--1);
+  font-weight: 550;
+  cursor: pointer;
+  visibility: hidden;
+  transition:
+    color var(--dur-1) ease,
+    border-color var(--dur-1) ease;
+}
+
+.motion-toggle.ready {
+  visibility: visible;
+}
+
+.motion-toggle:hover {
+  color: var(--ink);
+  border-color: var(--ink-muted);
+}
+
+/* State shown by fill, not color alone; aria-pressed carries it for AT */
+.motion-toggle-dot {
+  width: 0.55em;
+  height: 0.55em;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  background: transparent;
+}
+
+.motion-toggle[aria-pressed='true'] .motion-toggle-dot {
+  background: currentColor;
+}
+
 .site-nav ul {
   display: flex;
   flex-wrap: wrap;
@@ -315,6 +440,28 @@ main[tabindex='-1']:focus-visible {
   font-weight: 640;
 }
 
+/* Kinetic name: JS splits the h1 into masked letters (aria-label keeps the
+   accessible name intact). Masks are width-locked during the entrance so
+   the weight wave can't reflow the line. */
+.hero-word {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.hero-letter-mask {
+  display: inline-block;
+  overflow: hidden;
+  text-align: center;
+  /* keep descenders and serif overshoot visible inside the mask */
+  padding-bottom: 0.14em;
+  margin-bottom: -0.14em;
+}
+
+.hero-letter {
+  display: inline-block;
+  font-variation-settings: 'wght' var(--wght, 620);
+}
+
 /* ---------- Sections ---------- */
 
 .section {
@@ -360,18 +507,69 @@ main[tabindex='-1']:focus-visible {
   overflow: hidden;
 }
 
-/* Accent rule along the top of each card */
+.card {
+  transition:
+    transform var(--dur-1) ease,
+    border-color var(--dur-1) ease,
+    box-shadow var(--dur-1) ease;
+}
+
+/* Accent rule along the top of each card; --bar-scale lets the entrance
+   reveal draw it in */
 .card::before {
   content: '';
   position: absolute;
   inset: 0 0 auto 0;
   height: 3px;
   background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  transform: scaleX(var(--bar-scale, 1));
+  transform-origin: left;
+  transition: height var(--dur-1) ease;
 }
 
+/* Pointer-tracked accent spotlight, set via --mx/--my from JS.
+   Decoration only: fine pointers, motion on. */
+@media (pointer: fine) {
+  html[data-motion='on'] .card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity var(--dur-2) ease;
+    background: radial-gradient(
+      240px circle at var(--mx, 50%) var(--my, 40%),
+      color-mix(in srgb, var(--accent) 9%, transparent),
+      transparent 70%
+    );
+  }
+
+  html[data-motion='on'] .card:hover::after {
+    opacity: 1;
+  }
+}
+
+/* Layered hover/focus: lift, accent border + bar growth, heading tint —
+   identical on keyboard focus, and instant (but present) when motion off */
 .card:focus-within,
 .card:hover {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--hairline));
+  transform: translateY(var(--lift));
+  box-shadow: 0 14px 36px -18px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.card:focus-within::before,
+.card:hover::before {
+  height: 5px;
+}
+
+.card h3 {
+  transition: color var(--dur-1) ease;
+}
+
+.card:focus-within h3,
+.card:hover h3 {
+  color: var(--accent);
 }
 
 .card .kicker {
@@ -627,6 +825,74 @@ main[tabindex='-1']:focus-visible {
   flex-wrap: wrap;
   gap: var(--space-s) var(--space-m);
   justify-content: space-between;
+}
+
+/* ---------- Pre-reveal guard ----------
+   Added pre-paint (only when motion is on) so reveal targets never flash
+   before the motion module takes over; a failsafe timeout in the inline
+   script removes it if the module fails to load. Content stays in the
+   accessibility tree throughout — opacity only, never visibility. */
+
+.motion-pending .hero > *,
+.motion-pending .section-head > *,
+.motion-pending .card,
+.motion-pending .media-item,
+.motion-pending .post-item,
+.motion-pending .now-list > li {
+  opacity: 0;
+}
+
+/* ---------- Cross-document view transitions ----------
+   Pure CSS, real navigations — native focus and history semantics, nothing
+   for JS to break. The motion module injects the same opt-in at runtime for
+   the one case CSS can't express (OS reduce + explicit toggle on). */
+
+@media (prefers-reduced-motion: no-preference) {
+  @view-transition {
+    navigation: auto;
+  }
+}
+
+/* Header and footer are identical across pages — pin them so only content
+   participates in the transition */
+.site-header {
+  view-transition-name: site-header;
+}
+
+.site-footer {
+  view-transition-name: site-footer;
+}
+
+main {
+  view-transition-name: main-content;
+}
+
+@keyframes vt-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes vt-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+::view-transition-old(main-content) {
+  animation: vt-out 0.2s ease both;
+}
+
+::view-transition-new(main-content) {
+  animation: vt-in 0.3s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+/* Manual toggle off: transitions become instant swaps */
+html[data-motion='off']::view-transition-group(*),
+html[data-motion='off']::view-transition-old(*),
+html[data-motion='off']::view-transition-new(*) {
+  animation: none !important;
 }
 
 /* ---------- Forced colors (Windows High Contrast) ---------- */

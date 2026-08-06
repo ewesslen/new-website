@@ -1,9 +1,9 @@
 # Erik — personal site
 
 A personal hub for a solo founder running several ventures in parallel.
-Built with [Astro](https://astro.build), TypeScript, and hand-written CSS.
-Zero client-side JavaScript in the current phase; motion arrives later as a
-progressive enhancement.
+Built with [Astro](https://astro.build), TypeScript, hand-written CSS, and
+GSAP for motion — layered as a strict progressive enhancement over a site
+that is complete without it.
 
 ## Run
 
@@ -81,6 +81,45 @@ scripts/
   contrast.mjs         ← WCAG contrast check for the palette
   a11y.mjs             ← axe scan of the built site
 ```
+
+## Motion architecture
+
+Motion state is a single attribute, `data-motion="on|off"` on `<html>`,
+set **pre-paint** by an inline script in `src/layouts/Base.astro`:
+an explicit choice (localStorage, set by the header's Motion toggle) wins,
+otherwise the OS `prefers-reduced-motion` setting decides. Everything keys
+off that one state:
+
+- **CSS**: all transition durations run through `--dur-*` custom
+  properties that collapse to `0s` when motion is off — state changes
+  (hover colors, borders) still happen, instantly. The hover lift distance
+  is a variable (`--lift`) that collapses to `0px`.
+- **JS** (`src/scripts/motion.ts`, the only client JS on the site):
+  GSAP + ScrollTrigger reveals, the kinetic variable-font hero, magnetic
+  elements, and card spotlights — all check the attribute and tear down
+  cleanly when toggled off.
+- **View transitions** are *cross-document* (CSS `@view-transition`) —
+  real page navigations with native focus/history semantics; no client
+  router. Disabled under reduced motion; instant when toggled off.
+- **Lenis / scroll hijacking is deliberately not used** — CSS
+  `scroll-behavior: smooth` (gated on motion state) covers anchor jumps
+  without touching native scrolling.
+
+Safety properties, verified by `npm run a11y` and `npm run keyboard` in
+both motion states:
+
+- Reveals animate `opacity`/`transform` only — content never leaves the
+  accessibility tree, and under reduced motion everything is simply
+  present, immediately.
+- Reveal targets are pre-hidden only while `motion-pending` is set; a
+  failsafe timeout removes it, so a failed JS load can never hide content.
+- A `focusin` listener completes any reveal a keyboard user tabs into —
+  focus is never on an invisible element (asserted in the keyboard test).
+- The hero letter animation locks letter widths during its weight wave and
+  metric-matched font fallbacks (`size-adjust`/`ascent-override`) cover the
+  webfont swap — measured CLS ≈ 0.
+- The motion bundle (~47 KB gz) is a deferred module; first paint never
+  waits on it.
 
 ## Accessibility ground rules (all phases)
 
