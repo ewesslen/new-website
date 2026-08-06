@@ -1,6 +1,7 @@
 ---
 import type { Venture } from '../data/site';
 import GeeqoidWordmark from './GeeqoidWordmark.astro';
+import StackingSenseLockup from './StackingSenseLockup.astro';
 
 interface Props {
   item: Venture;
@@ -9,25 +10,23 @@ interface Props {
 const { item } = Astro.props;
 const links = item.links.filter((l) => l.url);
 
-/** Brand wordmarks that stand in for the title text — see `Venture.logo` */
-const LOGOS = { geeqoid: GeeqoidWordmark };
-const Logo = item.logo ? LOGOS[item.logo] : null;
+/**
+ * Brand treatments that stand in for the plain title text — see `Venture.logo`.
+ * Each component owns its own markup and accessible name (the artwork kinds
+ * carry a visually hidden name; the type-based ones are real text); the class
+ * is what the heading needs to lay that treatment out.
+ */
+const LOGOS = {
+  geeqoid: { component: GeeqoidWordmark, className: 'has-logo' },
+  'stacking-sense': { component: StackingSenseLockup, className: 'has-lockup' },
+};
+const brand = item.logo ? LOGOS[item.logo] : null;
+const Brand = brand?.component;
 ---
 
 <li class="media-item" data-accent={item.slug}>
   <p class="kicker">{item.kicker}</p>
-  {
-    /* With a wordmark the heading keeps its text for AT and the outline,
-       visually hidden behind the artwork */
-    Logo ? (
-      <h3 class="has-logo">
-        <Logo />
-        <span class="visually-hidden">{item.name}</span>
-      </h3>
-    ) : (
-      <h3>{item.name}</h3>
-    )
-  }
+  {Brand ? <h3 class={brand!.className}>{<Brand name={item.name} />}</h3> : <h3>{item.name}</h3>}
   <p>{item.description}</p>
   {
     links.length > 0 && (
