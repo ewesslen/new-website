@@ -90,6 +90,27 @@ scripts/
   a11y.mjs             ← axe scan of the built site
 ```
 
+## Typography
+
+Two variable grotesks, both self-hosted via Fontsource, wired through
+`--font-display` and `--font-body` in `src/styles/global.css`:
+
+| Role | Face | Weight |
+| --- | --- | --- |
+| `h1` (hero, wordmark) | Familjen Grotesk | 700 |
+| Section heads, card titles | Familjen Grotesk | 400 |
+| Subtitles (hero tagline, section notes) | Hanken Grotesk | 400 |
+| Body copy | Hanken Grotesk | 400 |
+
+**Familjen Grotesk's `wght` axis stops at 700**, which is also the h1's
+resting weight — so the hero's pointer wave thins letters rather than
+thickening them (`WGHT_NEAR` in `src/scripts/motion.ts`). Hanken Grotesk
+runs the full 100–900, so body weights have room either way.
+
+Both fallbacks are Arial (Liberation Sans on Linux), with `size-adjust`
+and ascent/descent overrides measured from each webfont's own tables —
+re-measure them if either face is swapped.
+
 ## Motion architecture
 
 Motion state is a single attribute, `data-motion="on|off"` on `<html>`,
@@ -125,7 +146,8 @@ both motion states:
   focus is never on an invisible element (asserted in the keyboard test).
 - The hero letter animation locks letter widths during its weight wave and
   metric-matched font fallbacks (`size-adjust`/`ascent-override`) cover the
-  webfont swap — measured CLS ≈ 0.
+  webfont swap — measured CLS ≈ 0 (0.003 with font loads held back 400 ms,
+  the worst case for the swap).
 - The motion bundle (~47 KB gz) is a deferred module; first paint never
   waits on it.
 
