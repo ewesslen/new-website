@@ -61,22 +61,24 @@ select {
 :root {
   color-scheme: light dark;
 
-  /* Global palette — restrained at rest so venture accents pop */
-  --bg: #faf7f2;
+  /* Global palette — restrained at rest so venture accents pop.
+     Cool neutrals throughout: light mode is the ink background's daylight
+     counterpart (same blue-black hue family, not a warm cream). */
+  --bg: #f5f7fa;
   --bg-raised: #ffffff;
-  --ink: #201c16;
-  --ink-muted: #5c5546;
-  --hairline: #e3dcce;
-  --focus-ring: #201c16;
+  --ink: #161a26;
+  --ink-muted: #4e5769;
+  --hairline: #dde2eb;
+  --focus-ring: #161a26;
 
   /* Per-venture accents (contrast-safe on --bg; verified in scripts/contrast.mjs) */
-  --accent-trellais: #1d5c42; /* dark forest green */
-  --accent-trellais-2: #8a6d1f; /* heritage gold, darkened for light bg */
-  --accent-panodash: #0b6b35; /* terminal green, darkened for light bg */
-  --accent-ssd: #6f5410; /* black+gold brand → bronze on light */
+  --accent-trellais: #14594a; /* forest green, cooled toward teal */
+  --accent-trellais-2: #7a6019; /* heritage gold, darkened for light bg */
+  --accent-panodash: #0a6b4c; /* terminal green → emerald on light */
+  --accent-ssd: #6e551c; /* black+gold brand → bronze on light */
   --accent-stacking-sense: #2b3cc4; /* ultramarine */
-  --accent-mwcapcon: #8a4520; /* copper */
-  --accent-geeqoid: #6d28a8; /* violet */
+  --accent-mwcapcon: #8c4426; /* copper */
+  --accent-geeqoid: #5b32b5; /* violet, shifted bluer */
 
   /* Fluid type scale (~320px → ~1200px) */
   --step--1: clamp(0.83rem, 0.8rem + 0.16vw, 0.92rem);
@@ -106,20 +108,20 @@ select {
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #14110c;
-    --bg-raised: #1d1913;
-    --ink: #efeae0;
-    --ink-muted: #aaa291;
-    --hairline: #322c22;
-    --focus-ring: #efeae0;
+    --bg: #0a0d18; /* ink */
+    --bg-raised: #131828;
+    --ink: #e8ebf2;
+    --ink-muted: #9aa3b8;
+    --hairline: #232a3d;
+    --focus-ring: #e8ebf2;
 
-    --accent-trellais: #d9ae53; /* heritage gold reads best on dark */
-    --accent-trellais-2: #6fbd97; /* forest green, lifted */
-    --accent-panodash: #3ee07f; /* phosphor green, full strength */
-    --accent-ssd: #ddbc63;
-    --accent-stacking-sense: #97a5ff;
-    --accent-mwcapcon: #e39a6b;
-    --accent-geeqoid: #c29bf0;
+    --accent-trellais: #e3b961; /* heritage gold reads best on ink */
+    --accent-trellais-2: #63c6a0; /* forest green, lifted */
+    --accent-panodash: #35e58c; /* phosphor green, full strength */
+    --accent-ssd: #e2c170;
+    --accent-stacking-sense: #96a6ff;
+    --accent-mwcapcon: #f0a07a;
+    --accent-geeqoid: #bfa0ff;
   }
 }
 
