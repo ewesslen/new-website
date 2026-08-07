@@ -4,6 +4,7 @@ import '@fontsource-variable/hanken-grotesk';
 import '../styles/global.css';
 import { SITE, SOCIALS, NEWSLETTER } from '../data/site';
 import SocialIcon from '../components/SocialIcon.astro';
+import IsoCubesBackground from '../components/IsoCubesBackground.astro';
 
 interface Props {
   title?: string;
@@ -66,6 +67,8 @@ const socials = SOCIALS.filter((s) => s.url);
     </script>
   </head>
   <body>
+    <IsoCubesBackground />
+
     <a class="skip-link" href="#main">Skip to content</a>
 
     <header class="site-header">

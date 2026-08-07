@@ -1,0 +1,726 @@
+---
+/**
+ * IsoCubesBackground — ambient, autonomous isometric-cube field.
+ *
+ * A fixed, full-viewport Canvas 2D layer behind all content (z-index -1,
+ * pointer-events none, aria-hidden). Cubes drift, assemble into small
+ * towers around a configurable focal point, and disperse again; the whole
+ * field sways on a slow orbit. Three canvas tiers give the depth: far
+ * tiers are smaller, fainter, lower-resolution, and softened by *static*
+ * CSS blurs — the compositor pays for depth-of-field once, never per cube.
+ *
+ * Every pixel derives from `baseColor` (default: the theme ink via
+ * currentColor). Face shades, edges, and grain are alpha steps of that one
+ * color; light/dark polarity is read from the page background so the top
+ * face always renders lightest, on either theme.
+ *
+ * Honors the site's `data-motion` toggle where present (falling back to
+ * `prefers-reduced-motion` alone) — motion off renders a single static,
+ * fully-assembled composition. Pauses when the tab is hidden or the
+ * element leaves the viewport.
+ *
+ * Mount once, first thing inside <body> (see Base.astro):
+ *
+ *   <IsoCubesBackground />
+ *
+ * or tuned:
+ *
+ *   <IsoCubesBackground intensity={0.7} focal={{ x: 0.5, y: 0.5 }} />
+ */
+interface Props {
+  /** Any CSS color; the entire field derives from it. Default: theme ink. */
+  baseColor?: string;
+  /** 0..1 — overall visual strength (the field's opacity ceiling). */
+  intensity?: number;
+  /** Cube-count multiplier: 1 ≈ 70 cubes on a 1440×900 viewport, hard-capped. */
+  density?: number;
+  /** Focal point the field clusters around, as viewport fractions. */
+  focal?: { x: number; y: number };
+  /** Cluster tightness — falloff radius as a fraction of min(vw, vh). */
+  focalRadius?: number;
+  /** 0..1 — how strongly motion is biased toward the focal point vs free drift. */
+  focalPull?: number;
+  /** Global speed multiplier for every motion. */
+  speed?: number;
+  /** 0..1 — faint film-grain strength (0 disables). */
+  grain?: number;
+}
+
+const {
+  baseColor = 'var(--bg-accent, currentColor)',
+  intensity = 0.5,
+  density = 1,
+  focal = { x: 0.7, y: 0.36 },
+  focalRadius = 0.42,
+  focalPull = 0.6,
+  speed = 1,
+  grain = 0.5,
+} = Astro.props;
+
+const config = { density, focal, focalRadius, focalPull, speed, grain };
+---
+
+<div
+  class="iso-cubes"
+  aria-hidden="true"
+  data-iso-cubes={JSON.stringify(config)}
+  style={`color:${baseColor};opacity:${(0.36 * intensity).toFixed(3)};--fx:${(focal.x * 100).toFixed(1)}%;--fy:${(focal.y * 100).toFixed(1)}%;`}
+>
+  <canvas data-tier="0"></canvas>
+  <canvas data-tier="1"></canvas>
+  <canvas data-tier="2"></canvas>
+  <div class="iso-grain"></div>
+</div>
+
+<style>
+  .iso-cubes {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    overflow: hidden;
+    contain: strict;
+    /* Atmospheric falloff: the field breathes around the focal point and
+       thins toward the viewport edges instead of ending at a hard frame. */
+    -webkit-mask-image: radial-gradient(
+      140% 125% at var(--fx) var(--fy),
+      #000 28%,
+      rgb(0 0 0 / 0.6) 68%,
+      rgb(0 0 0 / 0.25) 100%
+    );
+    mask-image: radial-gradient(
+      140% 125% at var(--fx) var(--fy),
+      #000 28%,
+      rgb(0 0 0 / 0.6) 68%,
+      rgb(0 0 0 / 0.25) 100%
+    );
+  }
+
+  .iso-cubes canvas,
+  .iso-grain {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0; /* revealed by script after the first frame */
+    transition: opacity 700ms ease;
+  }
+
+  /* Depth of field as static compositor filters — no per-cube canvas blur.
+     Far tiers also render at reduced backing resolution (see TIERS). */
+  canvas[data-tier='0'] {
+    filter: blur(2.1px);
+  }
+  canvas[data-tier='1'] {
+    filter: blur(0.7px);
+  }
+
+  .iso-grain {
+    background-repeat: repeat;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .iso-cubes canvas,
+    .iso-grain {
+      transition: none;
+    }
+  }
+</style>
+
+<script>
+  /* True isometric axes (30°): every cube shares them — no per-cube
+     rotation. A cube is one pre-rendered sprite per tier, stamped many
+     times per frame. */
+  const ISO_X = Math.cos(Math.PI / 6);
+  const ISO_Y = Math.sin(Math.PI / 6);
+
+  /* Depth tiers, far → near. Blur and tier opacity live in CSS; `res`
+     drops far-tier backing resolution (blurred anyway), `flatten`
+     compresses face contrast with distance, `spread` widens the far
+     cluster so the parallax reads as one deep field, and `parallax`
+     scales the shared orbit — near sways more than far. */
+  const TIERS = [
+    { size: 13, share: 0.42, opacity: 0.5, parallax: 0.35, res: 0.6, speed: 0.55, flatten: 0.45, spread: 1.3 },
+    { size: 21, share: 0.34, opacity: 0.75, parallax: 0.65, res: 0.85, speed: 0.8, flatten: 0.2, spread: 1.05 },
+    { size: 33, share: 0.24, opacity: 1, parallax: 1, res: 1, speed: 1, flatten: 0, spread: 0.82 },
+  ];
+
+  const FLOAT = 0;
+  const SEEK = 1;
+  const LOCKED = 2;
+
+  interface Config {
+    density: number;
+    focal: { x: number; y: number };
+    focalRadius: number;
+    focalPull: number;
+    speed: number;
+    grain: number;
+  }
+
+  interface Cube {
+    state: number;
+    gx: number;
+    gy: number;
+    gz: number; // continuous iso-grid coords (tier units)
+    vx: number;
+    vy: number;
+    homeX: number;
+    homeY: number;
+    homeT: number;
+    hoverGz: number;
+    phase: number;
+    wanderTh: number;
+    env: number; // fade envelope, avoids pop on respawn
+    fading: boolean;
+    site: Site | null;
+    level: number;
+    timer: number;
+    fromX: number;
+    fromY: number;
+    fromZ: number; // seek start
+    seekT: number;
+    seekDur: number;
+  }
+
+  interface Site {
+    gx: number;
+    gy: number;
+    cap: number;
+    stack: Cube[];
+  }
+
+  interface Sprite {
+    canvas: HTMLCanvasElement;
+    w: number;
+    h: number;
+    ox: number;
+    oy: number;
+  }
+
+  interface Tier {
+    cfg: (typeof TIERS)[number];
+    canvas: HTMLCanvasElement;
+    ctx: CanvasRenderingContext2D;
+    scale: number;
+    sprite: Sprite;
+    cubes: Cube[];
+    sites: Site[];
+    schedT: number;
+  }
+
+  interface Palette {
+    r: number;
+    g: number;
+    b: number;
+    a: number;
+    faces: { top: number; left: number; right: number };
+    edge: number;
+  }
+
+  const rand = Math.random;
+  const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+  /* Box–Muller; 1-rand() keeps log() off zero */
+  const gauss = () => Math.sqrt(-2 * Math.log(1 - rand())) * Math.cos(2 * Math.PI * rand());
+  const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+
+  /* Normalize any CSS color through a 1×1 canvas — handles rgb(), lab(),
+     color-mix() results, keywords, everything getComputedStyle can emit. */
+  const probe = document.createElement('canvas');
+  probe.width = probe.height = 1;
+  const probeCtx = probe.getContext('2d', { willReadFrequently: true });
+
+  function parseColor(str: string): [number, number, number, number] {
+    if (!probeCtx) return [128, 128, 128, 1];
+    probeCtx.clearRect(0, 0, 1, 1);
+    probeCtx.fillStyle = '#000';
+    probeCtx.fillStyle = str;
+    probeCtx.fillRect(0, 0, 1, 1);
+    const d = probeCtx.getImageData(0, 0, 1, 1).data;
+    return [d[0]!, d[1]!, d[2]!, d[3]! / 255];
+  }
+
+  const luminance = (c: [number, number, number, number]) =>
+    0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+
+  function resolveBackground(): [number, number, number, number] {
+    for (const el of [document.body, document.documentElement]) {
+      const c = parseColor(getComputedStyle(el).backgroundColor);
+      if (c[3] > 0.02) return c;
+    }
+    return matchMedia('(prefers-color-scheme: dark)').matches
+      ? [0, 0, 0, 1]
+      : [255, 255, 255, 1];
+  }
+
+  function computePalette(el: HTMLElement): Palette {
+    const base = parseColor(getComputedStyle(el).color);
+    const lightInk = luminance(base) > luminance(resolveBackground());
+    /* The top face must read lightest against the page: with a light ink
+       on a dark page that means the most ink (highest alpha); with a dark
+       ink on a light page, the least. Left stays brighter than right —
+       one consistent light source from the upper left. */
+    const faces = lightInk
+      ? { top: 0.92, left: 0.5, right: 0.3 }
+      : { top: 0.26, left: 0.5, right: 0.78 };
+    return { r: base[0], g: base[1], b: base[2], a: base[3], faces, edge: 0.85 };
+  }
+
+  function shade(pal: Palette, alpha: number): string {
+    return `rgba(${pal.r},${pal.g},${pal.b},${(alpha * pal.a).toFixed(3)})`;
+  }
+
+  /* One cube, three faces + hairline edges, baked once per tier. `flatten`
+     pulls the face alphas toward their mean — distant cubes lose contrast
+     the way real atmosphere takes it. */
+  function makeSprite(S: number, scale: number, pal: Palette, flatten: number): Sprite {
+    const X = ISO_X * S;
+    const Y = ISO_Y * S;
+    const pad = 2;
+    const w = 2 * X + pad * 2;
+    const h = 2 * S + pad * 2;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.ceil(w * scale));
+    canvas.height = Math.max(1, Math.ceil(h * scale));
+    const ctx = canvas.getContext('2d');
+    const ox = pad + X;
+    const oy = h - pad;
+    if (!ctx) return { canvas, w, h, ox, oy };
+    ctx.scale(scale, scale);
+    ctx.translate(ox, oy); // origin = bottom-front vertex
+    const mean = (pal.faces.top + pal.faces.left + pal.faces.right) / 3;
+    const soften = (a: number) => a + (mean - a) * flatten;
+    ctx.lineWidth = 1;
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = shade(pal, pal.edge * (1 - flatten * 0.7));
+    const face = (pts: [number, number][], alpha: number) => {
+      ctx.beginPath();
+      ctx.moveTo(pts[0]![0], pts[0]![1]);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i]![0], pts[i]![1]);
+      ctx.closePath();
+      ctx.fillStyle = shade(pal, soften(alpha));
+      ctx.fill();
+      ctx.stroke();
+    };
+    face([[0, -S], [X, -Y - S], [0, -2 * Y - S], [-X, -Y - S]], pal.faces.top);
+    face([[0, 0], [-X, -Y], [-X, -Y - S], [0, -S]], pal.faces.left);
+    face([[0, 0], [X, -Y], [X, -Y - S], [0, -S]], pal.faces.right);
+    return { canvas, w, h, ox, oy };
+  }
+
+  /* Cube silhouette (hexagon), used to punch a hole before stamping the
+     translucent sprite: back cubes never bleed through front ones, which
+     is what makes the painter's-algorithm stacking actually read. */
+  function hexPath(ctx: CanvasRenderingContext2D, x: number, y: number, S: number): void {
+    const X = ISO_X * S;
+    const Y = ISO_Y * S;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + X, y - Y);
+    ctx.lineTo(x + X, y - Y - S);
+    ctx.lineTo(x, y - 2 * Y - S);
+    ctx.lineTo(x - X, y - Y - S);
+    ctx.lineTo(x - X, y - Y);
+    ctx.closePath();
+  }
+
+  function setup(container: HTMLElement): void {
+    const cfg: Config = {
+      density: 1,
+      focal: { x: 0.7, y: 0.36 },
+      focalRadius: 0.42,
+      focalPull: 0.6,
+      speed: 1,
+      grain: 0.5,
+      ...(JSON.parse(container.dataset.isoCubes || '{}') as Partial<Config>),
+    };
+    const canvases = Array.from(container.querySelectorAll('canvas'));
+    const grainEl = container.querySelector<HTMLElement>('.iso-grain');
+    if (canvases.length < TIERS.length) return;
+
+    let W = 0;
+    let H = 0;
+    let palette: Palette = computePalette(container);
+    let tiers: Tier[] = [];
+    let orbT = rand() * 70; // start mid-orbit: nothing to sync a loop point to
+    let raf = 0;
+    let last = 0;
+    let intersecting = true;
+    let revealed = false;
+
+    /* World mapping: screen = center + iso(world), so world coords survive
+       gentle resizes and the orbit is a pure render-time offset. */
+    const toScreenX = (t: Tier, gx: number, gy: number) => W / 2 + (gx - gy) * ISO_X * t.cfg.size;
+    const toScreenY = (t: Tier, gx: number, gy: number, gz: number) =>
+      H / 2 + (gx + gy) * ISO_Y * t.cfg.size - gz * t.cfg.size;
+    const toWorld = (t: Tier, px: number, py: number) => {
+      const u = (px - W / 2) / (ISO_X * t.cfg.size);
+      const v = (py - H / 2) / (ISO_Y * t.cfg.size);
+      return { gx: (v + u) / 2, gy: (v - u) / 2 };
+    };
+
+    /* Gaussian sample around the focal point — the density falloff. σ is
+       half the falloff radius, so ~95% of the field sits inside it. */
+    const sampleHome = (t: Tier, tighten = 1) => {
+      const R = cfg.focalRadius * Math.min(W, H) * 0.5 * t.cfg.spread * tighten;
+      return toWorld(
+        t,
+        cfg.focal.x * W + gauss() * R,
+        cfg.focal.y * H + gauss() * R * 0.8
+      );
+    };
+
+    function makeCube(t: Tier, init: Partial<Cube>): Cube {
+      const home = sampleHome(t);
+      return {
+        state: FLOAT,
+        gx: home.gx,
+        gy: home.gy,
+        gz: 0,
+        vx: (rand() - 0.5) * 0.2,
+        vy: (rand() - 0.5) * 0.2,
+        homeX: home.gx,
+        homeY: home.gy,
+        homeT: 14 + rand() * 24,
+        hoverGz: 0.4 + rand() * 1.6,
+        phase: rand() * Math.PI * 2,
+        wanderTh: rand() * Math.PI * 2,
+        env: 1,
+        fading: false,
+        site: null,
+        level: 0,
+        timer: 0,
+        fromX: 0,
+        fromY: 0,
+        fromZ: 0,
+        seekT: 0,
+        seekDur: 1,
+        ...init,
+      };
+    }
+
+    function populate(t: Tier, count: number): void {
+      t.cubes = [];
+      t.sites = [];
+      const taken = new Set<string>();
+      const nSites = Math.max(2, Math.round((count * 0.5) / 2.6));
+      for (let i = 0; i < nSites * 8 && t.sites.length < nSites; i++) {
+        const p = sampleHome(t, 0.8);
+        const gx = Math.round(p.gx);
+        const gy = Math.round(p.gy);
+        const key = `${gx},${gy}`;
+        if (taken.has(key)) continue;
+        taken.add(key);
+        t.sites.push({ gx, gy, cap: 2 + Math.floor(rand() * 3), stack: [] });
+      }
+      /* Start partially assembled: reduced-motion sees a finished
+         composition, and the animated start has towers to unbuild. */
+      for (const site of t.sites) {
+        const fill = Math.min(count - t.cubes.length, Math.floor(site.cap * (0.35 + rand() * 0.45)));
+        for (let lv = 0; lv < fill; lv++) {
+          const cube = makeCube(t, {
+            state: LOCKED,
+            gx: site.gx,
+            gy: site.gy,
+            gz: lv,
+            site,
+            level: lv,
+            timer: 6 + rand() * 18,
+          });
+          site.stack.push(cube);
+          t.cubes.push(cube);
+        }
+      }
+      while (t.cubes.length < count) {
+        const cube = makeCube(t, {});
+        cube.gx += (rand() - 0.5) * 2;
+        cube.gy += (rand() - 0.5) * 2;
+        cube.gz = cube.hoverGz;
+        t.cubes.push(cube);
+      }
+    }
+
+    function build(): void {
+      W = container.clientWidth || innerWidth;
+      H = container.clientHeight || innerHeight;
+      const dpr = Math.min(devicePixelRatio || 1, 2);
+      /* Density scales with viewport area, hard-capped for perf. */
+      const total = clamp(Math.round(70 * cfg.density * ((W * H) / (1440 * 900))), 24, 110);
+      tiers = TIERS.map((tc, i) => {
+        const canvas = canvases[i]!;
+        const scale = dpr * tc.res;
+        canvas.width = Math.max(1, Math.ceil(W * scale));
+        canvas.height = Math.max(1, Math.ceil(H * scale));
+        const ctx = canvas.getContext('2d')!;
+        const tier: Tier = {
+          cfg: tc,
+          canvas,
+          ctx,
+          scale,
+          sprite: makeSprite(tc.size, scale, palette, tc.flatten),
+          cubes: [],
+          sites: [],
+          schedT: rand() * 2,
+        };
+        populate(tier, Math.round(total * tc.share));
+        return tier;
+      });
+    }
+
+    function rebuildSprites(): void {
+      for (const t of tiers) t.sprite = makeSprite(t.cfg.size, t.scale, palette, t.cfg.flatten);
+    }
+
+    function buildGrain(): void {
+      if (!grainEl) return;
+      if (cfg.grain <= 0) {
+        grainEl.style.display = 'none';
+        return;
+      }
+      const g = document.createElement('canvas');
+      g.width = g.height = 128;
+      const gctx = g.getContext('2d');
+      if (!gctx) return;
+      const img = gctx.createImageData(128, 128);
+      for (let i = 0; i < img.data.length; i += 4) {
+        img.data[i] = palette.r;
+        img.data[i + 1] = palette.g;
+        img.data[i + 2] = palette.b;
+        img.data[i + 3] = rand() < 0.5 ? 0 : rand() * 46;
+      }
+      gctx.putImageData(img, 0, 0);
+      grainEl.style.backgroundImage = `url(${g.toDataURL()})`;
+    }
+
+    /* ---------- Simulation ---------- */
+
+    function release(c: Cube): void {
+      c.site?.stack.pop();
+      c.site = null;
+      c.state = FLOAT;
+      c.hoverGz = c.gz + 0.3 + rand() * 0.8;
+      const th = rand() * Math.PI * 2;
+      c.vx = Math.cos(th) * 0.25;
+      c.vy = Math.sin(th) * 0.25;
+      c.homeT = 0; // resample a home immediately — drift somewhere new
+    }
+
+    function tryAssign(t: Tier): void {
+      const floats = t.cubes.filter((c) => c.state === FLOAT && !c.fading && c.env > 0.6);
+      /* Keep a live population of drifters — the field should never fully
+         crystallize into towers. */
+      if (floats.length <= t.cubes.length * 0.3) return;
+      const open = t.sites.filter((s) => s.stack.length < s.cap);
+      if (open.length === 0) return;
+      const site = open[Math.floor(rand() * open.length)]!;
+      let best: Cube | null = null;
+      let bd = Infinity;
+      for (const f of floats) {
+        const d = (f.gx - site.gx) ** 2 + (f.gy - site.gy) ** 2;
+        if (d < bd) {
+          bd = d;
+          best = f;
+        }
+      }
+      if (!best || bd > 26 * 26) return;
+      best.state = SEEK;
+      best.site = site;
+      best.level = site.stack.length;
+      site.stack.push(best);
+      best.fromX = best.gx;
+      best.fromY = best.gy;
+      best.fromZ = best.gz;
+      best.seekT = 0;
+      best.seekDur = Math.min(5, 1.6 + Math.sqrt(bd) * 0.5);
+    }
+
+    function update(dt: number): void {
+      orbT += dt * cfg.speed;
+      for (const t of tiers) {
+        const sdt = dt * cfg.speed * t.cfg.speed;
+        t.schedT -= sdt;
+        if (t.schedT <= 0) {
+          tryAssign(t);
+          t.schedT = 1.8 + rand() * 2.4;
+        }
+        const margin = t.cfg.size * 3;
+        for (const c of t.cubes) {
+          if (c.state === FLOAT) {
+            c.homeT -= sdt;
+            if (c.homeT <= 0) {
+              const p = sampleHome(t);
+              c.homeX = p.gx;
+              c.homeY = p.gy;
+              c.homeT = 16 + rand() * 22;
+            }
+            /* Wander (heading random-walk) + spring toward a personal home
+               near the focal point. focalPull sets the balance; the spring
+               never targets the focal point itself, so density stays a
+               smooth falloff instead of a clump. */
+            c.wanderTh += (rand() - 0.5) * 4.8 * sdt;
+            const pull = 0.09 * (0.15 + cfg.focalPull);
+            const ax = Math.cos(c.wanderTh) * 0.24 + (c.homeX - c.gx) * pull;
+            const ay = Math.sin(c.wanderTh) * 0.24 + (c.homeY - c.gy) * pull;
+            const damp = Math.exp(-0.8 * sdt);
+            c.vx = (c.vx + ax * sdt) * damp;
+            c.vy = (c.vy + ay * sdt) * damp;
+            const sp = Math.hypot(c.vx, c.vy);
+            if (sp > 0.42) {
+              c.vx *= 0.42 / sp;
+              c.vy *= 0.42 / sp;
+            }
+            c.gx += c.vx * sdt;
+            c.gy += c.vy * sdt;
+            c.gz += (c.hoverGz + Math.sin(orbT * 0.45 + c.phase) * 0.16 - c.gz) * Math.min(1, sdt * 1.3);
+            const sx = toScreenX(t, c.gx, c.gy);
+            const sy = toScreenY(t, c.gx, c.gy, c.gz);
+            if (!c.fading && (sx < -margin || sx > W + margin || sy < -margin || sy > H + margin)) {
+              c.fading = true;
+            }
+          } else if (c.state === SEEK && c.site) {
+            c.seekT += sdt / c.seekDur;
+            const k = Math.min(1, c.seekT);
+            const e = easeInOut(k);
+            c.gx = c.fromX + (c.site.gx - c.fromX) * e;
+            c.gy = c.fromY + (c.site.gy - c.fromY) * e;
+            /* Lift, carry, settle: an arc over the direct path. */
+            c.gz = c.fromZ + (c.level - c.fromZ) * e + Math.sin(Math.PI * k) * 1.1;
+            if (k >= 1) {
+              c.state = LOCKED;
+              c.gx = c.site.gx;
+              c.gy = c.site.gy;
+              c.gz = c.level;
+              c.timer = 9 + rand() * 16;
+            }
+          } else if (c.state === LOCKED && c.site) {
+            c.timer -= sdt;
+            if (c.timer <= 0) {
+              /* Towers unbuild from the top only. */
+              if (c.site.stack.at(-1) === c) release(c);
+              else c.timer = 2 + rand() * 3;
+            }
+          }
+          if (c.fading) {
+            c.env -= sdt * 0.7;
+            if (c.env <= 0) {
+              const p = sampleHome(t);
+              c.gx = p.gx + (rand() - 0.5) * 2;
+              c.gy = p.gy + (rand() - 0.5) * 2;
+              c.homeX = p.gx;
+              c.homeY = p.gy;
+              c.gz = c.hoverGz = 0.4 + rand() * 1.6;
+              c.vx = c.vy = 0;
+              c.env = 0;
+              c.fading = false;
+            }
+          } else if (c.env < 1) {
+            c.env = Math.min(1, c.env + sdt * 0.7);
+          }
+        }
+      }
+    }
+
+    /* ---------- Render ---------- */
+
+    function render(): void {
+      for (const t of tiers) {
+        const { ctx, scale, sprite } = t;
+        const S = t.cfg.size;
+        /* Painter's algorithm on iso axes: footprint depth first, then
+           height — stacked and overlapping cubes occlude correctly. */
+        t.cubes.sort((a, b) => a.gx + a.gy - (b.gx + b.gy) || a.gz - b.gz);
+        const obX = Math.cos((orbT * 2 * Math.PI) / 70) * 16 * t.cfg.parallax;
+        const obY = Math.sin((orbT * 2 * Math.PI) / 70) * 9 * t.cfg.parallax;
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, t.canvas.width, t.canvas.height);
+        ctx.setTransform(scale, 0, 0, scale, 0, 0);
+        ctx.fillStyle = '#000'; // punch fills: only alpha matters
+        const cull = S * 2.2;
+        for (const c of t.cubes) {
+          if (c.env <= 0.01) continue;
+          const sx = toScreenX(t, c.gx, c.gy) + obX;
+          const sy = toScreenY(t, c.gx, c.gy, c.gz) + obY;
+          if (sx < -cull || sx > W + cull || sy < -cull || sy > H + cull + S * 2) continue;
+          ctx.globalAlpha = c.env;
+          ctx.globalCompositeOperation = 'destination-out';
+          hexPath(ctx, sx, sy, S);
+          ctx.fill();
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.drawImage(sprite.canvas, sx - sprite.ox, sy - sprite.oy, sprite.w, sprite.h);
+        }
+        ctx.globalAlpha = 1;
+      }
+      if (!revealed) {
+        revealed = true;
+        tiers.forEach((t, i) => {
+          canvases[i]!.style.opacity = String(t.cfg.opacity);
+        });
+        if (grainEl && cfg.grain > 0) grainEl.style.opacity = (cfg.grain * 0.35).toFixed(3);
+      }
+    }
+
+    /* ---------- Lifecycle ---------- */
+
+    const html = document.documentElement;
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+    /* The site's motion toggle already folds in the OS preference and lets
+       the user override it; fall back to the raw media query when the
+       component is mounted somewhere without that system. */
+    const animEnabled = () =>
+      html.dataset.motion ? html.dataset.motion === 'on' : !reduced.matches;
+
+    const frame = (ts: number) => {
+      raf = requestAnimationFrame(frame);
+      const dt = clamp((ts - last) / 1000, 0, 0.05);
+      last = ts;
+      update(dt);
+      render();
+    };
+
+    function sync(): void {
+      const should = animEnabled() && !document.hidden && intersecting;
+      if (should && raf === 0) {
+        last = performance.now();
+        raf = requestAnimationFrame(frame);
+      } else if (!should && raf !== 0) {
+        cancelAnimationFrame(raf);
+        raf = 0;
+      }
+    }
+
+    new MutationObserver(sync).observe(html, { attributes: true, attributeFilter: ['data-motion'] });
+    reduced.addEventListener('change', sync);
+    document.addEventListener('visibilitychange', sync);
+    new IntersectionObserver((entries) => {
+      intersecting = entries[entries.length - 1]?.isIntersecting ?? true;
+      sync();
+    }).observe(container);
+
+    let resizeT = 0;
+    addEventListener('resize', () => {
+      clearTimeout(resizeT);
+      resizeT = window.setTimeout(() => {
+        build();
+        render();
+      }, 180);
+    });
+
+    /* Theme flips change the resolved base color — re-read it after the
+       new styles apply, then re-bake sprites and grain. */
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+      requestAnimationFrame(() => {
+        palette = computePalette(container);
+        rebuildSprites();
+        buildGrain();
+        render();
+      });
+    });
+
+    buildGrain();
+    build();
+    render(); // static composition is the floor; animation is enhancement
+    sync();
+  }
+
+  for (const el of document.querySelectorAll<HTMLElement>('[data-iso-cubes]')) setup(el);
+</script>
