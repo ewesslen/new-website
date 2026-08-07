@@ -3,19 +3,28 @@
  * IsoCubesBackground — ambient, autonomous isometric-cube field.
  *
  * A fixed, full-viewport Canvas 2D layer behind all content (z-index -1,
- * pointer-events none, aria-hidden). Cubes glide cell-by-cell along the
- * isometric lattice axes, assemble into small towers around a
- * configurable focal point, and disperse again; the whole field sways on
- * a slow orbit. Three canvas tiers give the depth: far tiers are smaller,
- * fainter, lower-resolution, and softened by *static* CSS blurs — the
- * compositor pays for depth-of-field once, never per cube.
+ * pointer-events none, aria-hidden). Cubes fly in from beyond the edge of
+ * the screen along the isometric axes, settle onto a destination cell —
+ * stacking into small towers around a configurable focal point — rest
+ * there, then fly back out again. The whole field sways on a slow orbit.
+ * Three canvas tiers give the depth: far tiers are smaller, fainter,
+ * lower-resolution, and softened by *static* CSS blurs — the compositor
+ * pays for depth-of-field once, never per cube.
  *
- * Movement is collision-proof by construction: each cube occupies one
- * integer grid cell, and every move first reserves its destination cell,
- * holding both cells until the glide completes. Claims are exclusive and
- * an axis-aligned step never leaves its two claimed cells, so cubes in a
- * tier can touch faces but can never pass through one another — they
- * route around towers and each other instead.
+ * Every journey is one continuous glide: a long approach along one
+ * horizontal iso axis at cruise altitude, then a vertical settle onto the
+ * destination (reversed on the way out). Duration and easing are drawn
+ * fresh per trip, so speed and acceleration never repeat.
+ *
+ * Cubes can never pass through one another. Planning a trip samples its
+ * whole trajectory and claims, for every lattice cell the cube will
+ * overlap, the exact time window it is there; a trip is only dispatched
+ * if none of those windows collide with a claim already held. Since only
+ * one coordinate varies at a time, "never sharing a cell at the same
+ * instant" is equivalent to staying a full cell apart — cubes may touch
+ * faces but never interpenetrate. A blocked plan is simply not dispatched
+ * and is retried with another approach axis or altitude, so nothing ever
+ * visibly stalls.
  *
  * Every pixel derives from `baseColor` (default: the theme ink via
  * currentColor). Face shades, edges, and grain are alpha steps of that one
@@ -46,7 +55,7 @@ interface Props {
   focal?: { x: number; y: number };
   /** Cluster tightness — falloff radius as a fraction of min(vw, vh). */
   focalRadius?: number;
-  /** 0..1 — how strongly movement is biased toward the focal point vs roaming. */
+  /** 0..1 — how tightly destinations concentrate on the focal point. */
   focalPull?: number;
   /** Global speed multiplier for every motion. */
   speed?: number;
@@ -146,19 +155,41 @@ const config = { density, focal, focalRadius, focalPull, speed, grain };
      drops far-tier backing resolution (blurred anyway), `flatten`
      compresses face contrast with distance, `spread` widens the far
      cluster so the parallax reads as one deep field, and `parallax`
-     scales the shared orbit — near sways more than far. */
+     scales both the shared orbit and travel speed — near sways and moves
+     faster than far. */
   const TIERS = [
-    { size: 13, share: 0.42, opacity: 0.5, parallax: 0.35, res: 0.6, speed: 0.55, flatten: 0.45, spread: 1.3 },
-    { size: 21, share: 0.34, opacity: 0.75, parallax: 0.65, res: 0.85, speed: 0.8, flatten: 0.2, spread: 1.05 },
-    { size: 33, share: 0.24, opacity: 1, parallax: 1, res: 1, speed: 1, flatten: 0, spread: 0.82 },
+    { size: 13, share: 0.42, opacity: 0.5, parallax: 0.35, res: 0.6, flatten: 0.45, spread: 1.3 },
+    { size: 21, share: 0.34, opacity: 0.75, parallax: 0.65, res: 0.85, flatten: 0.2, spread: 1.05 },
+    { size: 33, share: 0.24, opacity: 1, parallax: 1, res: 1, flatten: 0, spread: 0.82 },
   ];
 
-  const FLOAT = 0;
-  const SEEK = 1;
-  const LOCKED = 2;
+  const PARKED = 0;
+  const INBOUND = 1;
+  const OUTBOUND = 2;
+  const WAITING = 3; // offscreen, holding nothing, awaiting dispatch
 
-  /* Roaming cubes travel at levels 0..MAX_Z; towers top out below it. */
-  const MAX_Z = 4;
+  /* Parked cubes live on levels 0..3; travel happens in lanes above them,
+     so long approaches never have to thread the resting composition. */
+  const MAX_PARK_Z = 3;
+  const CRUISE_LO = 4;
+  const CRUISE_HI = 6;
+
+  const DIRS: [number, number][] = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+
+  /* Arrivals decelerate into place, departures accelerate away, and both
+     draw from a few shapes so no two trips share a velocity curve. */
+  const ARRIVE_EASES = [
+    (t: number) => 1 - Math.pow(1 - t, 3),
+    (t: number) => 1 - Math.pow(1 - t, 4),
+    (t: number) => 1 - Math.pow(1 - t, 2.2),
+    (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2),
+  ];
+  const DEPART_EASES = [
+    (t: number) => t * t,
+    (t: number) => t * t * t,
+    (t: number) => Math.pow(t, 2.4),
+    (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2),
+  ];
 
   interface Config {
     density: number;
@@ -169,41 +200,48 @@ const config = { density, focal, focalRadius, focalPull, speed, grain };
     grain: number;
   }
 
+  interface Point {
+    x: number;
+    y: number;
+    z: number;
+  }
+
   interface Cube {
     state: number;
     x: number;
     y: number;
-    z: number; // occupied cell (integer lattice)
-    tx: number;
-    ty: number;
-    tz: number; // reserved destination cell (== x,y,z when idle)
+    z: number; // parked cell (meaningful while PARKED)
     px: number;
     py: number;
-    pz: number; // interpolated position, refreshed each render
-    moving: boolean;
-    moveT: number;
-    moveDur: number;
-    pause: number; // time until the next step attempt
-    run: number; // chained steps left in the current direction
-    runDX: number;
-    runDY: number;
-    travelZ: number; // seek cruise altitude (≥ landing level + 1)
-    homeX: number;
-    homeY: number;
-    homeT: number;
-    env: number; // fade envelope, avoids pop on relocation
-    fading: boolean;
+    pz: number; // render position
+    active: boolean; // false only while WAITING offscreen
+    path: Point[] | null;
+    segLen: number[];
+    total: number;
+    /* Trip progress is read from the shared clock rather than accumulated
+       per cube, so a cube can never drift out of step with the schedule
+       its cell reservations were computed against. */
+    startT: number;
+    dur: number;
+    ease: (t: number) => number;
+    keys: string[]; // cells this cube currently holds claims on
     site: Site | null;
     level: number;
-    timer: number;
-    blocked: number; // consecutive denied steps while seeking
+    dwell: number;
   }
 
   interface Site {
     gx: number;
     gy: number;
+    base: number;
     cap: number;
-    stack: Cube[];
+    stack: Cube[]; // parked cubes plus inbound cubes that already claimed a level
+  }
+
+  interface Claim {
+    t0: number;
+    t1: number;
+    c: Cube;
   }
 
   interface Sprite {
@@ -222,8 +260,10 @@ const config = { density, focal, focalRadius, focalPull, speed, grain };
     sprite: Sprite;
     cubes: Cube[];
     sites: Site[];
-    cells: Map<string, Cube>; // occupancy: every claimed cell, incl. move targets
+    res: Map<string, Claim[]>; // cell → time windows during which it is occupied
+    flightCap: number;
     schedT: number;
+    pruneT: number;
   }
 
   interface Palette {
@@ -239,7 +279,7 @@ const config = { density, focal, focalRadius, focalPull, speed, grain };
   const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
   /* Box–Muller; 1-rand() keeps log() off zero */
   const gauss = () => Math.sqrt(-2 * Math.log(1 - rand())) * Math.cos(2 * Math.PI * rand());
-  const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+  const pick = <T,>(arr: T[]): T => arr[Math.floor(rand() * arr.length)]!;
 
   /* Normalize any CSS color through a 1×1 canvas — handles rgb(), lab(),
      color-mix() results, keywords, everything getComputedStyle can emit. */
@@ -359,6 +399,7 @@ const config = { density, focal, focalRadius, focalPull, speed, grain };
     let H = 0;
     let palette: Palette = computePalette(container);
     let tiers: Tier[] = [];
+    let simT = 0; // reservation clock, seconds of simulated time
     let orbT = rand() * 70; // start mid-orbit: nothing to sync a loop point to
     let raf = 0;
     let last = 0;
@@ -377,90 +418,502 @@ const config = { density, focal, focalRadius, focalPull, speed, grain };
     };
 
     /* Gaussian sample around the focal point — the density falloff. σ is
-       half the falloff radius, so ~95% of the field sits inside it. */
-    const sampleHome = (t: Tier, tighten = 1) => {
+       half the falloff radius scaled by focalPull, so destinations cluster
+       tightly or loosely without ever forming a hard boundary. */
+    const sampleHome = (t: Tier) => {
+      const tighten = 1.35 - 0.7 * cfg.focalPull;
       const R = cfg.focalRadius * Math.min(W, H) * 0.5 * t.cfg.spread * tighten;
-      return toWorld(
-        t,
-        cfg.focal.x * W + gauss() * R,
-        cfg.focal.y * H + gauss() * R * 0.8
-      );
+      return toWorld(t, cfg.focal.x * W + gauss() * R, cfg.focal.y * H + gauss() * R * 0.8);
     };
 
     const cellKey = (x: number, y: number, z: number) => `${x},${y},${z}`;
 
-    function makeCube(home: { gx: number; gy: number }, x: number, y: number, z: number): Cube {
+    /* ---------- Trip geometry ---------- */
+
+    function segments(path: Point[]): { segLen: number[]; total: number } {
+      const segLen: number[] = [];
+      let total = 0;
+      for (let i = 1; i < path.length; i++) {
+        const a = path[i - 1]!;
+        const b = path[i]!;
+        const len = Math.abs(b.x - a.x) + Math.abs(b.y - a.y) + Math.abs(b.z - a.z);
+        segLen.push(len);
+        total += len;
+      }
+      return { segLen, total };
+    }
+
+    /* Position at distance d along the poly-line. Fixed coordinates come
+       out bit-exact (a + 0 * f), which keeps cell math free of drift. */
+    function posAt(path: Point[], segLen: number[], d: number): Point {
+      let rem = clamp(d, 0, Infinity);
+      for (let i = 0; i < segLen.length; i++) {
+        const len = segLen[i]!;
+        if (rem <= len || i === segLen.length - 1) {
+          const a = path[i]!;
+          const b = path[i + 1]!;
+          const f = len > 0 ? clamp(rem / len, 0, 1) : 1;
+          return {
+            x: a.x + (b.x - a.x) * f,
+            y: a.y + (b.y - a.y) * f,
+            z: a.z + (b.z - a.z) * f,
+          };
+        }
+        rem -= len;
+      }
+      return path[path.length - 1]!;
+    }
+
+    /* Easings are monotone, so bisection inverts them exactly enough to
+       turn "distance along the path" back into "when". */
+    function inverseEase(ease: (t: number) => number, p: number): number {
+      let lo = 0;
+      let hi = 1;
+      for (let i = 0; i < 30; i++) {
+        const mid = (lo + hi) / 2;
+        if (ease(mid) < p) lo = mid;
+        else hi = mid;
+      }
+      return (lo + hi) / 2;
+    }
+
+    /* The exact time window during which the cube overlaps each cell it
+       passes through. A unit cube centred at v covers every integer
+       strictly within 1 of it, so along a segment whose varying
+       coordinate runs v0 → v1, cell c is occupied precisely while v is
+       inside (c-1, c+1) — two boundaries, converted to distance, then to
+       time through the easing's inverse. Solving it rather than sampling
+       it matters: eased motion is several times faster than average over
+       part of a long path, where any fixed sampling rate can step clean
+       over a cell and leave it unclaimed. */
+    function claimWindows(
+      path: Point[],
+      segLen: number[],
+      total: number,
+      dur: number,
+      ease: (t: number) => number,
+      startT: number
+    ): Map<string, [number, number]> {
+      const out = new Map<string, [number, number]>();
+      const timeAt = (d: number) => startT + dur * inverseEase(ease, clamp(d / total, 0, 1));
+      let base = 0;
+      for (let i = 0; i < segLen.length; i++) {
+        const a = path[i]!;
+        const b = path[i + 1]!;
+        const len = segLen[i]!;
+        if (len <= 0) continue;
+        const axis: 'x' | 'y' | 'z' = b.x !== a.x ? 'x' : b.y !== a.y ? 'y' : 'z';
+        const v0 = a[axis];
+        const v1 = b[axis];
+        const lo = Math.min(v0, v1);
+        const hi = Math.max(v0, v1);
+        for (let c = Math.ceil(lo - 1); c <= Math.floor(hi + 1); c++) {
+          const vA = Math.max(lo, c - 1);
+          const vB = Math.min(hi, c + 1);
+          if (vB <= vA) continue; // touching only — never inside the cell
+          const sA = Math.abs(vA - v0);
+          const sB = Math.abs(vB - v0);
+          const t0 = timeAt(base + Math.min(sA, sB));
+          const t1 = timeAt(base + Math.max(sA, sB));
+          const key = cellKey(
+            axis === 'x' ? c : a.x,
+            axis === 'y' ? c : a.y,
+            axis === 'z' ? c : a.z
+          );
+          const span = out.get(key);
+          if (span) {
+            if (t0 < span[0]) span[0] = t0;
+            if (t1 > span[1]) span[1] = t1;
+          } else {
+            out.set(key, [t0, t1]);
+          }
+        }
+        base += len;
+      }
+      const pad = 0.08; // margin for frame granularity and float slop
+      for (const span of out.values()) {
+        span[0] -= pad;
+        span[1] += pad;
+      }
+      return out;
+    }
+
+    function conflicts(t: Tier, windows: Map<string, [number, number]>, self: Cube): boolean {
+      for (const [key, [t0, t1]] of windows) {
+        const held = t.res.get(key);
+        if (!held) continue;
+        for (const r of held) {
+          if (r.c !== self && t0 <= r.t1 && r.t0 <= t1) return true;
+        }
+      }
+      return false;
+    }
+
+    function dropClaims(t: Tier, c: Cube): void {
+      for (const key of c.keys) {
+        const held = t.res.get(key);
+        if (!held) continue;
+        const kept = held.filter((r) => r.c !== c);
+        if (kept.length) t.res.set(key, kept);
+        else t.res.delete(key);
+      }
+      c.keys = [];
+    }
+
+    function commit(t: Tier, c: Cube, windows: Map<string, [number, number]>): void {
+      dropClaims(t, c);
+      const keys: string[] = [];
+      for (const [key, [t0, t1]] of windows) {
+        const held = t.res.get(key) ?? [];
+        held.push({ t0, t1, c });
+        t.res.set(key, held);
+        keys.push(key);
+      }
+      c.keys = keys;
+    }
+
+    function prune(t: Tier): void {
+      for (const [key, held] of t.res) {
+        const kept = held.filter((r) => r.t1 >= simT);
+        if (kept.length) t.res.set(key, kept);
+        else t.res.delete(key);
+      }
+    }
+
+    /* Steps along (dx, dy) from a column until the projected cube clears
+       the viewport — where a journey starts, or ends. */
+    function offscreenSteps(t: Tier, gx: number, gy: number, z: number, dx: number, dy: number): number {
+      const m = t.cfg.size * 2.6 + 30; // covers the orbit sway too
+      for (let n = 2; n <= 300; n++) {
+        const sx = toScreenX(t, gx + dx * n, gy + dy * n);
+        const sy = toScreenY(t, gx + dx * n, gy + dy * n, z);
+        if (sx < -m || sx > W + m || sy < -m || sy > H + m) return n + 1 + Math.floor(rand() * 4);
+      }
+      return 0;
+    }
+
+    function screenLength(t: Tier, path: Point[]): number {
+      let len = 0;
+      for (let i = 1; i < path.length; i++) {
+        const a = path[i - 1]!;
+        const b = path[i]!;
+        len += Math.hypot(
+          toScreenX(t, b.x, b.y) - toScreenX(t, a.x, a.y),
+          toScreenY(t, b.x, b.y, b.z) - toScreenY(t, a.x, a.y, a.z)
+        );
+      }
+      return len;
+    }
+
+    /* Speed varies per trip and with depth: nearer tiers cover more screen
+       distance per second, which reads as parallax rather than haste. */
+    function tripDuration(t: Tier, path: Point[]): number {
+      const pxPerSec = (55 + rand() * 85) * (0.45 + 0.55 * t.cfg.parallax);
+      return clamp(screenLength(t, path) / pxPerSec, 4, 40);
+    }
+
+    function launch(
+      t: Tier,
+      c: Cube,
+      path: Point[],
+      ease: (t: number) => number,
+      state: number,
+      parkKey: string | null
+    ): boolean {
+      const { segLen, total } = segments(path);
+      if (total <= 0) return false;
+      /* Durations are in simulated seconds; the clock already carries
+         cfg.speed, so it must not be applied a second time here. */
+      const dur = tripDuration(t, path);
+      const windows = claimWindows(path, segLen, total, dur, ease, simT);
+      /* A cube stays on its destination until it next departs, so that
+         cell is held from arrival onward. The open-ended hold has to be
+         in place for the conflict *check*, not just the commit: checking
+         only the arrival window would let a cube park somewhere another
+         cube has already booked a later pass through. */
+      if (parkKey) {
+        const span = windows.get(parkKey);
+        if (span) span[1] = Infinity;
+      }
+      if (conflicts(t, windows, c)) return false;
+      commit(t, c, windows);
+      c.path = path;
+      c.segLen = segLen;
+      c.total = total;
+      c.dur = dur;
+      c.ease = ease;
+      c.startT = simT;
+      c.state = state;
+      c.active = true;
+      const p = posAt(path, segLen, 0);
+      c.px = p.x;
+      c.py = p.y;
+      c.pz = p.z;
+      return true;
+    }
+
+    /* In: fly from offscreen along one axis at cruise altitude to the
+       column, then settle straight down onto the stack top. */
+    function planInbound(t: Tier, c: Cube, site: Site, level: number): boolean {
+      const gz = site.base + level;
+      for (let attempt = 0; attempt < 8; attempt++) {
+        const dir = pick(DIRS);
+        const cruise = CRUISE_LO + Math.floor(rand() * (CRUISE_HI - CRUISE_LO + 1));
+        const n = offscreenSteps(t, site.gx, site.gy, cruise, -dir[0], -dir[1]);
+        if (n === 0) continue;
+        const path: Point[] = [
+          { x: site.gx - dir[0] * n, y: site.gy - dir[1] * n, z: cruise },
+          { x: site.gx, y: site.gy, z: cruise },
+          { x: site.gx, y: site.gy, z: gz },
+        ];
+        if (launch(t, c, path, pick(ARRIVE_EASES), INBOUND, cellKey(site.gx, site.gy, gz))) {
+          c.site = site;
+          c.level = level;
+          return true;
+        }
+      }
+      return false;
+    }
+
+    /* Out: lift straight up out of the stack, then away along one axis
+       until fully offscreen. */
+    function planOutbound(t: Tier, c: Cube): boolean {
+      const site = c.site;
+      if (!site) return false;
+      const gz = site.base + c.level;
+      for (let attempt = 0; attempt < 8; attempt++) {
+        const dir = pick(DIRS);
+        const cruise = CRUISE_LO + Math.floor(rand() * (CRUISE_HI - CRUISE_LO + 1));
+        const n = offscreenSteps(t, site.gx, site.gy, cruise, dir[0], dir[1]);
+        if (n === 0) continue;
+        const path: Point[] = [
+          { x: site.gx, y: site.gy, z: gz },
+          { x: site.gx, y: site.gy, z: cruise },
+          { x: site.gx + dir[0] * n, y: site.gy + dir[1] * n, z: cruise },
+        ];
+        if (launch(t, c, path, pick(DEPART_EASES), OUTBOUND, null)) return true;
+      }
+      return false;
+    }
+
+    const flightsOf = (t: Tier) =>
+      t.cubes.reduce((n, c) => n + (c.state === INBOUND || c.state === OUTBOUND ? 1 : 0), 0);
+
+    function finishTrip(t: Tier, c: Cube): void {
+      const path = c.path!;
+      const end = path[path.length - 1]!;
+      c.px = end.x;
+      c.py = end.y;
+      c.pz = end.z;
+      c.path = null;
+      if (c.state === INBOUND) {
+        c.x = end.x;
+        c.y = end.y;
+        c.z = end.z;
+        c.state = PARKED;
+        c.dwell = 90 + rand() * 150; // long rests keep the field calm
+      } else {
+        if (c.site && c.site.stack.at(-1) === c) c.site.stack.pop();
+        c.site = null;
+        c.state = WAITING;
+        c.active = false;
+        c.dwell = 3 + rand() * 12;
+        dropClaims(t, c);
+      }
+    }
+
+    /* Sites are destinations, not physics: towers stack bottom-up from
+       z 0, singles float at a fixed level. Validity of any particular
+       landing is settled by the reservation check at plan time. */
+    function newSite(t: Tier, avoid: Set<string>): Site | null {
+      for (let i = 0; i < 12; i++) {
+        const p = sampleHome(t);
+        const gx = Math.round(p.gx);
+        const gy = Math.round(p.gy);
+        const key = `${gx},${gy}`;
+        if (avoid.has(key)) continue;
+        avoid.add(key);
+        const tower = rand() < 0.42;
+        return {
+          gx,
+          gy,
+          base: tower ? 0 : Math.floor(rand() * (MAX_PARK_Z + 1)),
+          cap: tower ? 2 + Math.floor(rand() * 2) : 1,
+          stack: [],
+        };
+      }
+      return null;
+    }
+
+    const columnKeys = (t: Tier) => new Set(t.sites.map((s) => `${s.gx},${s.gy}`));
+
+    function makeCube(): Cube {
       return {
-        state: FLOAT,
-        x,
-        y,
-        z,
-        tx: x,
-        ty: y,
-        tz: z,
-        px: x,
-        py: y,
-        pz: z,
-        moving: false,
-        moveT: 0,
-        moveDur: 0.7,
-        pause: rand() * 2.5,
-        run: 0,
-        runDX: 0,
-        runDY: 0,
-        travelZ: 0,
-        homeX: home.gx,
-        homeY: home.gy,
-        homeT: 14 + rand() * 24,
-        env: 1,
-        fading: false,
+        state: WAITING,
+        x: 0,
+        y: 0,
+        z: 0,
+        px: 0,
+        py: 0,
+        pz: 0,
+        active: false,
+        path: null,
+        segLen: [],
+        total: 0,
+        startT: 0,
+        dur: 1,
+        ease: ARRIVE_EASES[0]!,
+        keys: [],
         site: null,
         level: 0,
-        timer: 0,
-        blocked: 0,
+        dwell: rand() * 8,
       };
     }
 
     function populate(t: Tier, count: number): void {
       t.cubes = [];
       t.sites = [];
-      t.cells = new Map();
-      const taken = new Set<string>();
-      const nSites = Math.max(2, Math.round((count * 0.5) / 2.6));
-      for (let i = 0; i < nSites * 8 && t.sites.length < nSites; i++) {
-        const p = sampleHome(t, 0.8);
-        const gx = Math.round(p.gx);
-        const gy = Math.round(p.gy);
-        const key = `${gx},${gy}`;
-        if (taken.has(key)) continue;
-        taken.add(key);
-        t.sites.push({ gx, gy, cap: 2 + Math.floor(rand() * 3), stack: [] });
+      t.res = new Map();
+      const avoid = new Set<string>();
+      /* Enough capacity to hold the resting population with slack left
+         over, so arrivals always have somewhere to go. */
+      const nSites = Math.max(3, Math.round(count / 1.5));
+      for (let i = 0; i < nSites; i++) {
+        const s = newSite(t, avoid);
+        if (s) t.sites.push(s);
       }
-      /* Start partially assembled: reduced-motion sees a finished
-         composition, and the animated start has towers to unbuild. */
+      for (let i = 0; i < count; i++) t.cubes.push(makeCube());
+      t.flightCap = Math.max(2, Math.round(count * 0.18));
+
+      /* Open on a settled composition: most cubes already parked (this is
+         also exactly what reduced motion freezes on), the rest waiting
+         offscreen on staggered timers. */
+      let placed = 0;
+      const target = Math.round(count * 0.82);
       for (const site of t.sites) {
-        const fill = Math.min(count - t.cubes.length, Math.floor(site.cap * (0.35 + rand() * 0.45)));
-        for (let lv = 0; lv < fill; lv++) {
-          const cube = makeCube({ gx: site.gx, gy: site.gy }, site.gx, site.gy, lv);
-          cube.state = LOCKED;
-          cube.site = site;
-          cube.level = lv;
-          cube.timer = 6 + rand() * 18;
-          site.stack.push(cube);
-          t.cubes.push(cube);
-          t.cells.set(cellKey(site.gx, site.gy, lv), cube);
+        while (placed < target && site.stack.length < site.cap) {
+          const c = t.cubes[placed]!;
+          const z = site.base + site.stack.length;
+          c.state = PARKED;
+          c.active = true;
+          c.site = site;
+          c.level = site.stack.length;
+          c.x = c.px = site.gx;
+          c.y = c.py = site.gy;
+          c.z = c.pz = z;
+          c.dwell = 8 + rand() * 220; // spread first departures over minutes
+          const key = cellKey(site.gx, site.gy, z);
+          t.res.set(key, [{ t0: 0, t1: Infinity, c }]);
+          c.keys = [key];
+          site.stack.push(c);
+          placed++;
         }
       }
-      let guard = count * 40;
-      while (t.cubes.length < count && guard-- > 0) {
-        const home = sampleHome(t);
-        const x = Math.round(home.gx + (rand() - 0.5) * 3);
-        const y = Math.round(home.gy + (rand() - 0.5) * 3);
-        const z = Math.floor(rand() * MAX_Z);
-        if (t.cells.has(cellKey(x, y, z))) continue;
-        const cube = makeCube(home, x, y, z);
-        t.cells.set(cellKey(x, y, z), cube);
-        t.cubes.push(cube);
+    }
+
+    function dispatch(t: Tier): void {
+      /* Recycle sites that have emptied out, so the composition's layout
+         keeps evolving instead of rebuilding the same skyline. */
+      const cols = columnKeys(t);
+      for (let i = 0; i < t.sites.length; i++) {
+        const s = t.sites[i]!;
+        if (s.stack.length === 0 && rand() < 0.06) {
+          cols.delete(`${s.gx},${s.gy}`);
+          const next = newSite(t, cols);
+          if (next) t.sites[i] = next;
+        }
+      }
+      if (flightsOf(t) >= t.flightCap) return;
+      const ready = t.cubes.filter((c) => c.state === WAITING && c.dwell <= 0);
+      if (ready.length === 0) return;
+      const open = t.sites.filter((s) => s.stack.length < s.cap);
+      if (open.length === 0) return;
+      const cube = pick(ready);
+      const site = pick(open);
+      if (planInbound(t, cube, site, site.stack.length)) site.stack.push(cube);
+      else cube.dwell = 1 + rand() * 3;
+    }
+
+    function update(dt: number): void {
+      const sdt = dt * cfg.speed;
+      simT += sdt;
+      orbT += sdt;
+      for (const t of tiers) {
+        t.pruneT -= sdt;
+        if (t.pruneT <= 0) {
+          prune(t);
+          t.pruneT = 4;
+        }
+        t.schedT -= sdt;
+        if (t.schedT <= 0) {
+          dispatch(t);
+          t.schedT = 0.7 + rand() * 1.1;
+        }
+        for (const c of t.cubes) {
+          if (c.state === PARKED) {
+            c.dwell -= sdt;
+            if (c.dwell <= 0) {
+              /* Towers only ever release their top cube, so nothing is
+                 left hanging in mid-air. */
+              const top = c.site?.stack.at(-1) === c;
+              if (top && flightsOf(t) < t.flightCap && planOutbound(t, c)) {
+                if (c.site) c.site.stack.pop();
+                c.site = null;
+              } else {
+                c.dwell = 3 + rand() * 8;
+              }
+            }
+          } else if (c.state === WAITING) {
+            c.dwell -= sdt;
+          } else {
+            const k = (simT - c.startT) / c.dur;
+            if (k >= 1) {
+              finishTrip(t, c);
+            } else {
+              const p = posAt(c.path!, c.segLen, c.ease(k) * c.total);
+              c.px = p.x;
+              c.py = p.y;
+              c.pz = p.z;
+            }
+          }
+        }
+      }
+    }
+
+    /* ---------- Render ---------- */
+
+    function render(): void {
+      for (const t of tiers) {
+        const { ctx, scale, sprite } = t;
+        const S = t.cfg.size;
+        /* Painter's algorithm on iso axes: footprint depth first, then
+           height — stacked and overlapping cubes occlude correctly. */
+        t.cubes.sort((a, b) => a.px + a.py - (b.px + b.py) || a.pz - b.pz);
+        const obX = Math.cos((orbT * 2 * Math.PI) / 70) * 16 * t.cfg.parallax;
+        const obY = Math.sin((orbT * 2 * Math.PI) / 70) * 9 * t.cfg.parallax;
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, t.canvas.width, t.canvas.height);
+        ctx.setTransform(scale, 0, 0, scale, 0, 0);
+        ctx.fillStyle = '#000'; // punch fills: only alpha matters
+        const cull = S * 2.2;
+        for (const c of t.cubes) {
+          if (!c.active) continue;
+          const sx = toScreenX(t, c.px, c.py) + obX;
+          const sy = toScreenY(t, c.px, c.py, c.pz) + obY;
+          if (sx < -cull || sx > W + cull || sy < -cull || sy > H + cull + S * 2) continue;
+          ctx.globalCompositeOperation = 'destination-out';
+          hexPath(ctx, sx, sy, S);
+          ctx.fill();
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.drawImage(sprite.canvas, sx - sprite.ox, sy - sprite.oy, sprite.w, sprite.h);
+        }
+      }
+      if (!revealed) {
+        revealed = true;
+        tiers.forEach((t, i) => {
+          canvases[i]!.style.opacity = String(t.cfg.opacity);
+        });
+        if (grainEl && cfg.grain > 0) grainEl.style.opacity = (cfg.grain * 0.35).toFixed(3);
       }
     }
 
@@ -484,8 +937,10 @@ const config = { density, focal, focalRadius, focalPull, speed, grain };
           sprite: makeSprite(tc.size, scale, palette, tc.flatten),
           cubes: [],
           sites: [],
-          cells: new Map(),
-          schedT: rand() * 2,
+          res: new Map(),
+          flightCap: 2,
+          schedT: rand() * 1.5,
+          pruneT: 4,
         };
         populate(tier, Math.round(total * tc.share));
         return tier;
@@ -517,312 +972,6 @@ const config = { density, focal, focalRadius, focalPull, speed, grain };
       }
       gctx.putImageData(img, 0, 0);
       grainEl.style.backgroundImage = `url(${g.toDataURL()})`;
-    }
-
-    /* ---------- Simulation: axis-aligned steps on an exclusive grid ----------
-
-       A cube always owns the cell it stands in. beginStep() additionally
-       claims the destination cell and keeps both until arrive() releases
-       the origin — so any two cubes' claims are disjoint, and since an
-       axis step's swept volume is exactly its two claimed cells, cubes can
-       touch faces but can never intersect. A denied claim just means
-       "blocked": floats pick another direction, seekers wait or reroute. */
-
-    function beginStep(t: Tier, c: Cube, dx: number, dy: number, dz: number): boolean {
-      const nx = c.x + dx;
-      const ny = c.y + dy;
-      const nz = c.z + dz;
-      if (nz < 0 || nz > MAX_Z) return false;
-      const key = cellKey(nx, ny, nz);
-      if (t.cells.has(key)) return false;
-      t.cells.set(key, c);
-      c.tx = nx;
-      c.ty = ny;
-      c.tz = nz;
-      c.moving = true;
-      c.moveT = 0;
-      c.moveDur = 0.55 + rand() * 0.35;
-      return true;
-    }
-
-    function arrive(t: Tier, c: Cube): void {
-      t.cells.delete(cellKey(c.x, c.y, c.z));
-      c.x = c.tx;
-      c.y = c.ty;
-      c.z = c.tz;
-      c.moving = false;
-      c.moveT = 0;
-      if (c.state === SEEK && c.site && c.x === c.site.gx && c.y === c.site.gy && c.z === c.level) {
-        c.state = LOCKED;
-        c.timer = 9 + rand() * 16;
-        c.blocked = 0;
-        return;
-      }
-      c.pause = c.state === SEEK ? 0.15 + rand() * 0.3 : c.run > 0 ? 0.05 : 1.2 + rand() * 3;
-    }
-
-    /* Roaming: single eased steps with pauses, occasionally chained into
-       short straight runs, direction-weighted toward the cube's personal
-       home near the focal point. focalPull sets the weighting sharpness;
-       the home is never the focal point itself, so density stays a smooth
-       falloff instead of a clump. */
-    function floatAttempt(t: Tier, c: Cube): void {
-      if (c.run > 0) {
-        if (beginStep(t, c, c.runDX, c.runDY, 0)) {
-          c.run--;
-          return;
-        }
-        c.run = 0;
-      }
-      if (rand() < 0.16 && beginStep(t, c, 0, 0, rand() < 0.5 ? 1 : -1)) return;
-      const hx = c.homeX - c.x;
-      const hy = c.homeY - c.y;
-      const m = Math.hypot(hx, hy) || 1;
-      const bias = 2.2 * cfg.focalPull;
-      const dirs: [number, number][] = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-      const weights = dirs.map(([dx, dy]) => Math.exp(((dx * hx + dy * hy) / m) * bias));
-      for (let n = 0; n < 4; n++) {
-        let total = 0;
-        for (const w of weights) total += w;
-        if (total <= 0) break;
-        let r = rand() * total;
-        let i = 0;
-        while (i < 3 && (r -= weights[i]!) > 0) i++;
-        const d = dirs[i]!;
-        if (beginStep(t, c, d[0], d[1], 0)) {
-          if (rand() < 0.5) {
-            c.run = 1 + Math.floor(rand() * 2);
-            c.runDX = d[0];
-            c.runDY = d[1];
-          }
-          return;
-        }
-        weights[i] = 0; // that way is blocked — reweigh the rest
-      }
-      c.pause = 0.4 + rand() * 0.8; // boxed in; try again shortly
-    }
-
-    /* Assembly: rise to cruise altitude (above the landing level), travel
-       the lattice to the tower column, then descend onto the stack top.
-       Blocked steps wait, climb, or sidestep; too many in a row abandons
-       the errand and returns the cube to roaming. */
-    function seekAttempt(t: Tier, c: Cube): void {
-      const site = c.site;
-      if (!site) {
-        c.state = FLOAT;
-        return;
-      }
-      let ok = false;
-      if (c.x === site.gx && c.y === site.gy) {
-        ok = c.z > c.level && beginStep(t, c, 0, 0, -1);
-      } else if (c.z < c.travelZ) {
-        ok = beginStep(t, c, 0, 0, 1);
-      } else {
-        const dx = Math.sign(site.gx - c.x);
-        const dy = Math.sign(site.gy - c.y);
-        const tries: [number, number][] =
-          Math.abs(site.gx - c.x) >= Math.abs(site.gy - c.y)
-            ? [[dx, 0], [0, dy]]
-            : [[0, dy], [dx, 0]];
-        for (const [mx, my] of tries) {
-          if ((mx !== 0 || my !== 0) && beginStep(t, c, mx, my, 0)) {
-            ok = true;
-            break;
-          }
-        }
-        if (!ok && c.z < MAX_Z && rand() < 0.5) ok = beginStep(t, c, 0, 0, 1); // climb over
-        if (!ok) {
-          const d = dirs4[Math.floor(rand() * 4)]!;
-          ok = beginStep(t, c, d[0], d[1], 0); // sidestep around
-        }
-      }
-      if (ok) {
-        c.blocked = 0;
-        return;
-      }
-      c.blocked++;
-      c.pause = 0.25 + rand() * 0.4;
-      if (c.blocked > 10) abortSeek(c);
-    }
-
-    const dirs4: [number, number][] = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-
-    function abortSeek(c: Cube): void {
-      if (c.site && c.site.stack.at(-1) === c) c.site.stack.pop();
-      c.site = null;
-      c.state = FLOAT;
-      c.homeT = 0;
-      c.blocked = 0;
-      c.run = 0;
-    }
-
-    function release(c: Cube): void {
-      c.site?.stack.pop();
-      c.site = null;
-      c.state = FLOAT;
-      c.homeT = 0; // pick a fresh destination — the step engine walks it away
-      c.pause = 0.4 + rand() * 0.8;
-      c.run = 0;
-    }
-
-    function tryAssign(t: Tier): void {
-      const floats = t.cubes.filter((c) => c.state === FLOAT && !c.fading && c.env > 0.6);
-      /* Keep a live population of roamers — the field should never fully
-         crystallize into towers. */
-      if (floats.length <= t.cubes.length * 0.3) return;
-      /* One in-flight seeker per site keeps every descent column clear of
-         other seekers, and the landing cell must be free right now —
-         together with release-from-top-only this can't deadlock. */
-      const open = t.sites.filter(
-        (s) =>
-          s.stack.length < s.cap &&
-          !s.stack.some((c) => c.state !== LOCKED) &&
-          !t.cells.has(cellKey(s.gx, s.gy, s.stack.length))
-      );
-      if (open.length === 0) return;
-      const site = open[Math.floor(rand() * open.length)]!;
-      let best: Cube | null = null;
-      let bd = Infinity;
-      for (const f of floats) {
-        const d = (f.tx - site.gx) ** 2 + (f.ty - site.gy) ** 2;
-        if (d < bd) {
-          bd = d;
-          best = f;
-        }
-      }
-      if (!best || bd > 26 * 26) return;
-      best.state = SEEK;
-      best.site = site;
-      best.level = site.stack.length;
-      best.travelZ = Math.max(best.tz, best.level + 1);
-      best.blocked = 0;
-      best.run = 0;
-      site.stack.push(best);
-      if (!best.moving) best.pause = Math.min(best.pause, 0.2 + rand() * 0.3);
-    }
-
-    function relocate(t: Tier, c: Cube): void {
-      for (let i = 0; i < 20; i++) {
-        const p = sampleHome(t);
-        const x = Math.round(p.gx + (rand() - 0.5) * 3);
-        const y = Math.round(p.gy + (rand() - 0.5) * 3);
-        const z = Math.floor(rand() * MAX_Z);
-        const key = cellKey(x, y, z);
-        if (t.cells.has(key)) continue;
-        t.cells.delete(cellKey(c.x, c.y, c.z));
-        t.cells.set(key, c);
-        c.x = c.tx = x;
-        c.y = c.ty = y;
-        c.z = c.tz = z;
-        c.homeX = p.gx;
-        c.homeY = p.gy;
-        c.env = 0;
-        c.fading = false;
-        c.run = 0;
-        c.pause = rand();
-        return;
-      }
-      c.env = 0; // no free cell this frame — stay hidden, retry next
-    }
-
-    function update(dt: number): void {
-      orbT += dt * cfg.speed;
-      for (const t of tiers) {
-        const sdt = dt * cfg.speed * t.cfg.speed;
-        t.schedT -= sdt;
-        if (t.schedT <= 0) {
-          tryAssign(t);
-          t.schedT = 1.8 + rand() * 2.4;
-        }
-        const margin = t.cfg.size * 3;
-        for (const c of t.cubes) {
-          if (c.moving) {
-            c.moveT += sdt / c.moveDur;
-            if (c.moveT >= 1) arrive(t, c);
-          } else if (c.state === LOCKED) {
-            c.timer -= sdt;
-            if (c.timer <= 0) {
-              /* Towers unbuild from the top only. */
-              if (c.site && c.site.stack.at(-1) === c) release(c);
-              else c.timer = 2 + rand() * 3;
-            }
-          } else {
-            c.pause -= sdt;
-            if (c.pause <= 0) {
-              c.pause = 0.2;
-              if (c.state === FLOAT) floatAttempt(t, c);
-              else seekAttempt(t, c);
-            }
-          }
-          if (c.state === FLOAT) {
-            c.homeT -= sdt;
-            if (c.homeT <= 0) {
-              const p = sampleHome(t);
-              c.homeX = p.gx;
-              c.homeY = p.gy;
-              c.homeT = 16 + rand() * 22;
-            }
-            if (!c.fading && !c.moving) {
-              const sx = toScreenX(t, c.x, c.y);
-              const sy = toScreenY(t, c.x, c.y, c.z);
-              if (sx < -margin || sx > W + margin || sy < -margin || sy > H + margin) {
-                c.fading = true;
-              }
-            }
-          }
-          if (c.fading) {
-            c.env = Math.max(0, c.env - sdt * 0.7);
-            if (c.env <= 0 && !c.moving) relocate(t, c);
-          } else if (c.env < 1) {
-            c.env = Math.min(1, c.env + sdt * 0.7);
-          }
-        }
-      }
-    }
-
-    /* ---------- Render ---------- */
-
-    function render(): void {
-      for (const t of tiers) {
-        const { ctx, scale, sprite } = t;
-        const S = t.cfg.size;
-        for (const c of t.cubes) {
-          const e = c.moving ? easeInOut(Math.min(1, c.moveT)) : 0;
-          c.px = c.x + (c.tx - c.x) * e;
-          c.py = c.y + (c.ty - c.y) * e;
-          c.pz = c.z + (c.tz - c.z) * e;
-        }
-        /* Painter's algorithm on iso axes: footprint depth first, then
-           height — stacked and overlapping cubes occlude correctly. */
-        t.cubes.sort((a, b) => a.px + a.py - (b.px + b.py) || a.pz - b.pz);
-        const obX = Math.cos((orbT * 2 * Math.PI) / 70) * 16 * t.cfg.parallax;
-        const obY = Math.sin((orbT * 2 * Math.PI) / 70) * 9 * t.cfg.parallax;
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.clearRect(0, 0, t.canvas.width, t.canvas.height);
-        ctx.setTransform(scale, 0, 0, scale, 0, 0);
-        ctx.fillStyle = '#000'; // punch fills: only alpha matters
-        const cull = S * 2.2;
-        for (const c of t.cubes) {
-          if (c.env <= 0.01) continue;
-          const sx = toScreenX(t, c.px, c.py) + obX;
-          const sy = toScreenY(t, c.px, c.py, c.pz) + obY;
-          if (sx < -cull || sx > W + cull || sy < -cull || sy > H + cull + S * 2) continue;
-          ctx.globalAlpha = c.env;
-          ctx.globalCompositeOperation = 'destination-out';
-          hexPath(ctx, sx, sy, S);
-          ctx.fill();
-          ctx.globalCompositeOperation = 'source-over';
-          ctx.drawImage(sprite.canvas, sx - sprite.ox, sy - sprite.oy, sprite.w, sprite.h);
-        }
-        ctx.globalAlpha = 1;
-      }
-      if (!revealed) {
-        revealed = true;
-        tiers.forEach((t, i) => {
-          canvases[i]!.style.opacity = String(t.cfg.opacity);
-        });
-        if (grainEl && cfg.grain > 0) grainEl.style.opacity = (cfg.grain * 0.35).toFixed(3);
-      }
     }
 
     /* ---------- Lifecycle ---------- */
